@@ -1,7 +1,11 @@
 use std::fmt::Debug;
 use std::time::Duration;
 
+#[cfg(feature = "stream")]
+use futures::Stream;
 use reqwest::header::USER_AGENT;
+#[cfg(feature = "stream")]
+use reqwest_streams::error::StreamBodyError;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
@@ -11,7 +15,7 @@ use crate::{
 
 use super::{
     api_types::{CountTokensRequest, CountTokensResponse, ModelsListRequest, ModelsListResponse},
-    generate_content::GenerateContentRequest,
+    generate_content::{GenerateContentRequest, GenerateContentResponse},
     model::{Model, ModelInfo},
 };
 
@@ -168,8 +172,29 @@ impl GeminiClient {
         &self,
         model: Model,
         request: GenerateContentRequest,
-    ) -> AiResult<()> {
+    ) -> AiResult<GenerateContentResponse> {
         let url = Url::new(format!("{BASE_URL}/{model}:generateContent")).build();
         self.post(&url, request).await
+    }
+
+    #[cfg(feature = "stream")]
+    pub async fn generate_content_streamed(
+        &self,
+        model: Model,
+        request: GenerateContentRequest,
+    ) -> AiResult<impl Stream<Item = Result<GenerateContentResponse, StreamBodyError>>> {
+        use reqwest_streams::JsonStreamResponse;
+
+        let url = Url::new(format!("{BASE_URL}/{model}:generateContent")).build();
+        let response = self
+            .client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(AiError::Request)?;
+
+        let stream = response.json_array_stream::<GenerateContentResponse>(1024);
+        Ok(stream)
     }
 }

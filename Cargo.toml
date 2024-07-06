@@ -20,6 +20,7 @@ readme = "README.md"
 default = ["rustls-tls"]
 native-tls = ["reqwest/native-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
+stream = ["reqwest-streams", "futures"]
 
 [dependencies]
 reqwest = {version = "0.12", features = ["json", "rustls-tls"]}
@@ -27,3 +28,6 @@ serde = {version = "1", features = ["derive"]}
 serde_json = "1"
 serde_with = "3"
 thiserror = "1"
+
+futures = {version = "0.3", optional = true}
+reqwest-streams = {version = "0.6", features = ["json"], optional = true}

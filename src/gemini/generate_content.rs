@@ -55,8 +55,8 @@ pub struct GenerateContentRequest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SafetySetting {
-    category: HarmCategory,
-    threshold: HarmBlockThreshold,
+    pub category: HarmCategory,
+    pub threshold: HarmBlockThreshold,
 }
 
 // NOTE: There should only be one SafetySetting per category.
@@ -110,15 +110,110 @@ pub enum HarmBlockThreshold {
 #[serde(rename_all = "camelCase")]
 pub struct GenerationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
-    stop_sequences: Option<Vec<String>>,
+    pub stop_sequences: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    candidate_count: Option<u64>,
+    pub candidate_count: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    max_output_tokens: Option<u64>,
+    pub max_output_tokens: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    temperature: Option<f64>,
+    pub temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_p: Option<f64>,
+    pub top_p: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_k: Option<u64>,
+    pub top_k: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerateContentResponse {
+    pub candidates: Vec<Candidate>,
+    pub prompt_feedback: PromptFeedback,
+    pub usage_metadata: UsageMetadata,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Candidate {
+    pub content: Content,
+    pub finish_reason: FinishReason,
+    pub safety_ratings: Vec<SafetyRating>,
+    pub citation_metadata: CitationMetadata,
+    pub token_count: u64,
+    pub index: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum FinishReason {
+    #[serde(rename = "FINISH_REASON_UNSPECIFIED")]
+    Unspecified,
+    Stop,
+    MaxTokens,
+    Safety,
+    Recitation,
+    Other,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SafetyRating {
+    pub category: HarmCategory,
+    pub probability: HarmProbability,
+    pub blocked: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum HarmProbability {
+    #[serde(rename = "HARM_PROBABILITY_UNSPECIFIED")]
+    Unspecified,
+    Negligible,
+    Low,
+    Medium,
+    High,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitationMetadata {
+    pub citation_sources: Vec<CitationSource>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CitationSource {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_index: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_index: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uri: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub license: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptFeedback {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block_reason: Option<BlockReason>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety_ratings: Option<Vec<SafetyRating>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum BlockReason {
+    #[serde(rename = "BLOCK_REASON_UNSPECIFIED")]
+    Unspecified,
+    Safety,
+    Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageMetadata {
+    pub prompt_token_count: u64,
+    pub candidates_token_count: u64,
+    pub total_token_count: u64,
 }
