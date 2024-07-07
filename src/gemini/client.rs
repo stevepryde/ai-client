@@ -14,9 +14,8 @@ use crate::{
 };
 
 use super::{
-    api_types::{CountTokensRequest, CountTokensResponse, ModelsListRequest, ModelsListResponse},
-    generate_content::{GenerateContentRequest, GenerateContentResponse},
-    model::{Model, ModelInfo},
+    CountTokensRequest, CountTokensResponse, GenerateContentRequest, GenerateContentResponse,
+    Model, ModelInfo, ModelsListRequest, ModelsListResponse,
 };
 
 const BASE_URL: &str = "https://generativelanguage.googleapis.com/v1";
@@ -87,6 +86,9 @@ where
     T: DeserializeOwned,
 {
     if response.status().is_success() {
+        // let text = response.text().await.map_err(AiError::Response)?;
+        // println!("RESPONSE: {text}");
+        // serde_json::from_str(&text).map_err(AiError::Json)
         response.json().await.map_err(AiError::Response)
     } else {
         Err(AiError::ApiError(
@@ -185,7 +187,7 @@ impl GeminiClient {
     ) -> AiResult<impl Stream<Item = Result<GenerateContentResponse, StreamBodyError>>> {
         use reqwest_streams::JsonStreamResponse;
 
-        let url = Url::new(format!("{BASE_URL}/{model}:generateContent")).build();
+        let url = Url::new(format!("{BASE_URL}/{model}:streamGenerateContent")).build();
         let response = self
             .client
             .post(&url)

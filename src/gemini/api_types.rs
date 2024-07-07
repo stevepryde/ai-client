@@ -2,10 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::utils::IntoQuery;
 
-use super::{
-    generate_content::{Content, CountTokensGenerateContentRequest},
-    model::ModelInfo,
-};
+use super::{Content, CountTokensGenerateContentRequest, ModelInfo};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -23,6 +23,7 @@ rustls-tls = ["reqwest/rustls-tls"]
 stream = ["reqwest-streams", "futures"]
 
 [dependencies]
+base64 = "0.22"
 reqwest = {version = "0.12", features = ["json", "rustls-tls"]}
 serde = {version = "1", features = ["derive"]}
 serde_json = "1"
