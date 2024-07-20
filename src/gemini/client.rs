@@ -92,7 +92,11 @@ where
             Ok(data) => Ok(data),
             Err(e) => {
                 tracing::error!("failed to parse response body: {e:#}");
-                Err(AiError::ApiError(status, "unrecognised API response".to_string()))
+                tracing::error!("response body: {text}");
+                Err(AiError::ApiError(
+                    status,
+                    "unrecognised API response".to_string(),
+                ))
             }
         }
     } else {
