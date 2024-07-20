@@ -85,15 +85,23 @@ pub async fn parse_response<T>(response: reqwest::Response) -> AiResult<T>
 where
     T: DeserializeOwned,
 {
-    if response.status().is_success() {
-        // let text = response.text().await.map_err(AiError::Response)?;
-        // println!("RESPONSE: {text}");
-        // serde_json::from_str(&text).map_err(AiError::Json)
-        response.json().await.map_err(AiError::Response)
+    let status = response.status();
+    if status.is_success() {
+        let text = response.text().await.map_err(AiError::Response)?;
+        match serde_json::from_str(&text) {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                tracing::error!("failed to parse response body: {e:#}");
+                Err(AiError::ApiError(status, "unrecognised API response".to_string()))
+            }
+        }
     } else {
         Err(AiError::ApiError(
             response.status(),
-            response.text().await.map_err(AiError::Response)?,
+            response
+                .text()
+                .await
+                .unwrap_or_else(|_| "failed to decode response body".to_string()),
         ))
     }
 }
