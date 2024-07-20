@@ -206,7 +206,7 @@ pub struct GenerateContentResponse {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Candidate {
-    pub content: Content,
+    pub content: Option<Content>,
     pub finish_reason: FinishReason,
     pub safety_ratings: Vec<SafetyRating>,
     pub citation_metadata: Option<CitationMetadata>,
@@ -223,7 +223,28 @@ pub enum FinishReason {
     MaxTokens,
     Safety,
     Recitation,
+    Language,
     Other,
+}
+
+impl Display for FinishReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Descriptions are taken from the API documentation.
+        let desc = match self {
+            FinishReason::Unspecified => "Finish reason is unspecified",
+            FinishReason::Stop => "Natural stop point of the model or provided stop sequence",
+            FinishReason::MaxTokens => {
+                "The maximum number of tokens as specified in the request was reached"
+            }
+            FinishReason::Safety => "The candidate content was flagged for safety reasons",
+            FinishReason::Recitation => "The candidate content was flagged for recitation reasons",
+            FinishReason::Language => {
+                "The candidate content was flagged for using an unsupported language"
+            }
+            FinishReason::Other => "Unknown reason",
+        };
+        write!(f, "{desc}")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -539,10 +560,10 @@ mod tests {
             deserialized,
             GenerateContentResponse {
                 candidates: vec![Candidate {
-                    content: Content {
+                    content: Some(Content {
                         parts: vec![Part::text("Hello, World!")],
                         role: Some(Role::Model),
-                    },
+                    }),
                     finish_reason: FinishReason::Stop,
                     safety_ratings: vec![
                         SafetyRating {
