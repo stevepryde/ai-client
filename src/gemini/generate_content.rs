@@ -339,7 +339,7 @@ impl Display for BlockReason {
 #[serde(rename_all = "camelCase")]
 pub struct UsageMetadata {
     pub prompt_token_count: u64,
-    pub candidates_token_count: u64,
+    pub candidates_token_count: Option<u64>,
     pub total_token_count: u64,
 }
 
@@ -594,7 +594,7 @@ mod tests {
                 prompt_feedback: None,
                 usage_metadata: UsageMetadata {
                     prompt_token_count: 21,
-                    candidates_token_count: 8,
+                    candidates_token_count: Some(8),
                     total_token_count: 29,
                 },
             }
