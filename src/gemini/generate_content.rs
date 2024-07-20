@@ -111,6 +111,15 @@ pub struct SafetySetting {
     pub threshold: HarmBlockThreshold,
 }
 
+impl SafetySetting {
+    pub fn new(category: HarmCategory, threshold: HarmBlockThreshold) -> Self {
+        Self {
+            category,
+            threshold,
+        }
+    }
+}
+
 // NOTE: There should only be one SafetySetting per category.
 impl std::hash::Hash for SafetySetting {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
