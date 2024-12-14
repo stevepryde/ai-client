@@ -220,6 +220,7 @@ pub struct Candidate {
     pub safety_ratings: Vec<SafetyRating>,
     pub citation_metadata: Option<CitationMetadata>,
     pub token_count: Option<u64>,
+    #[serde(default)]
     pub index: u64,
 }
 
