@@ -14,11 +14,11 @@ use crate::{
 };
 
 use super::{
-    CountTokensRequest, CountTokensResponse, GenerateContentRequest, GenerateContentResponse,
-    Model, ModelInfo, ModelsListRequest, ModelsListResponse,
+    CountTokensRequest, CountTokensResponse, GeminiModel, GenerateContentRequest,
+    GenerateContentResponse, ModelInfo, ModelsListRequest, ModelsListResponse,
 };
 
-const BASE_URL: &str = "https://generativelanguage.googleapis.com/v1";
+const BASE_URL: &str = "https://generativelanguage.googleapis.com/v1beta";
 
 #[derive(Clone, Default)]
 pub struct GeminiClientBuilder {
@@ -167,39 +167,39 @@ impl GeminiClient {
         self.get(&url).await
     }
 
-    pub async fn get_model(&self, model: Model) -> AiResult<ModelInfo> {
+    pub async fn get_model(&self, model: GeminiModel) -> AiResult<ModelInfo> {
         // NOTE: Model serializes with the `models/` prefix.
-        let url = Url::new(format!("{BASE_URL}/{model}")).build();
+        let url = Url::new(format!("{BASE_URL}/models/{model}")).build();
         self.get(&url).await
     }
 
     pub async fn count_tokens(
         &self,
-        model: Model,
+        model: GeminiModel,
         request: CountTokensRequest,
     ) -> AiResult<CountTokensResponse> {
-        let url = Url::new(format!("{BASE_URL}/{model}:countTokens")).build();
+        let url = Url::new(format!("{BASE_URL}/models/{model}:countTokens")).build();
         self.post(&url, request).await
     }
 
     pub async fn generate_content(
         &self,
-        model: Model,
+        model: GeminiModel,
         request: GenerateContentRequest,
     ) -> AiResult<GenerateContentResponse> {
-        let url = Url::new(format!("{BASE_URL}/{model}:generateContent")).build();
+        let url = Url::new(format!("{BASE_URL}/models/{model}:generateContent")).build();
         self.post(&url, request).await
     }
 
     #[cfg(feature = "stream")]
     pub async fn generate_content_streamed(
         &self,
-        model: Model,
+        model: GeminiModel,
         request: GenerateContentRequest,
     ) -> AiResult<impl Stream<Item = Result<GenerateContentResponse, StreamBodyError>>> {
         use reqwest_streams::JsonStreamResponse;
 
-        let url = Url::new(format!("{BASE_URL}/{model}:streamGenerateContent")).build();
+        let url = Url::new(format!("{BASE_URL}/models/{model}:streamGenerateContent")).build();
         let response = self
             .client
             .post(&url)

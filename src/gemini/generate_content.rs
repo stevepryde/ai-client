@@ -4,11 +4,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::utils::{base64_decode, base64_encode};
 
-use super::Model;
+use super::GeminiModel;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Content {
+    #[serde(default)]
     pub parts: Vec<Part>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<Role>,
@@ -27,6 +28,7 @@ pub enum Part {
     Text(String),
     #[serde(rename = "inlineData")]
     Blob {
+        #[serde(rename = "mimeType")]
         mime_type: String,
         /// Base64 encoded data.
         data: String,
@@ -89,7 +91,7 @@ impl Part {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CountTokensGenerateContentRequest {
-    pub model: Model,
+    pub model: GeminiModel,
     #[serde(flatten)]
     pub request: GenerateContentRequest,
 }
@@ -196,12 +198,110 @@ pub struct GenerationConfig {
     pub candidate_count: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_output_tokens: Option<u64>,
+    /// Controls the randomness of the output. Use higher values for more
+    /// creative responses, and lower values for more deterministic responses.
+    /// Values can range from 0.0 to 2.0.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f64>,
+    /// Changes how the model selects tokens for output. Tokens are selected
+    /// from the most to least probable until the sum of their probabilities
+    /// equals the topP value. The default topP value is 0.95.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f64>,
+    /// Changes how the model selects tokens for output. A topK of 1 means the
+    /// selected token is the most probable among all the tokens in the model's
+    /// vocabulary, while a topK of 3 means that the next token is selected from
+    /// among the 3 most probable using the temperature. Tokens are further
+    /// filtered based on topP with the final token selected using temperature
+    /// sampling.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_k: Option<u64>,
+    /// The MIME type of the generated candidate text.
+    /// Supported MIME types are: "text/plain" (default) and "application/json".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_mime_type: Option<String>,
+    /// Output schema of the generated candidate text. Only applicable when
+    /// response_mime_type is set to "application/json". If set, the generated
+    /// text will be constrained to match the provided schema.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_schema: Option<serde_json::Value>,
+    /// Response modalities for multimodal output.
+    /// Use ["TEXT", "IMAGE"] for image generation with Gemini 2.0 Flash.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_modalities: Option<Vec<String>>,
+    /// Image configuration for image generation models.
+    /// REST API field: `imageConfig` inside `generationConfig`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_config: Option<GeminiImageConfig>,
+}
+
+/// Image configuration for Gemini image generation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeminiImageConfig {
+    /// Aspect ratio for the generated image.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aspect_ratio: Option<GeminiAspectRatio>,
+    /// Resolution tier for the generated image.
+    /// Only supported by certain models (e.g., gemini-3-pro-image-preview).
+    /// Omit for gemini-2.5-flash-image (defaults to 1K).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_size: Option<GeminiImageSize>,
+}
+
+/// Aspect ratio options for Gemini image generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum GeminiAspectRatio {
+    #[serde(rename = "1:1")]
+    Square,
+    #[serde(rename = "2:3")]
+    Portrait2x3,
+    #[serde(rename = "3:2")]
+    Landscape3x2,
+    #[serde(rename = "3:4")]
+    Portrait3x4,
+    #[serde(rename = "4:3")]
+    Landscape4x3,
+    #[serde(rename = "4:5")]
+    Portrait4x5,
+    #[serde(rename = "5:4")]
+    Landscape5x4,
+    #[serde(rename = "9:16")]
+    Portrait9x16,
+    #[serde(rename = "16:9")]
+    Landscape16x9,
+    #[serde(rename = "21:9")]
+    Ultrawide21x9,
+}
+
+/// Resolution tier for Gemini image generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum GeminiImageSize {
+    /// ~1K resolution (default)
+    #[serde(rename = "1K")]
+    OneK,
+    /// ~2K resolution
+    #[serde(rename = "2K")]
+    TwoK,
+    /// ~4K resolution
+    #[serde(rename = "4K")]
+    FourK,
+}
+
+/// Response modality options for Gemini.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResponseModality {
+    Text,
+    Image,
+}
+
+impl ResponseModality {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ResponseModality::Text => "TEXT",
+            ResponseModality::Image => "IMAGE",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -216,7 +316,8 @@ pub struct GenerateContentResponse {
 #[serde(rename_all = "camelCase")]
 pub struct Candidate {
     pub content: Option<Content>,
-    pub finish_reason: FinishReason,
+    pub finish_reason: Option<FinishReason>,
+    #[serde(default)]
     pub safety_ratings: Vec<SafetyRating>,
     pub citation_metadata: Option<CitationMetadata>,
     pub token_count: Option<u64>,
@@ -424,6 +525,10 @@ mod tests {
                 temperature: Some(0.5),
                 top_p: Some(0.9),
                 top_k: Some(100),
+                response_mime_type: None,
+                response_schema: None,
+                response_modalities: None,
+                image_config: None,
             }),
         };
 
@@ -473,6 +578,10 @@ mod tests {
                     temperature: Some(0.5),
                     top_p: Some(0.9),
                     top_k: Some(100),
+                    response_mime_type: None,
+                    response_schema: None,
+                    response_modalities: None,
+                    image_config: None,
                 }),
             }
         );
@@ -496,6 +605,10 @@ mod tests {
                 temperature: Some(0.5),
                 top_p: Some(0.9),
                 top_k: Some(100),
+                response_mime_type: None,
+                response_schema: None,
+                response_modalities: None,
+                image_config: None,
             }),
         };
 
@@ -574,7 +687,7 @@ mod tests {
                         parts: vec![Part::text("Hello, World!")],
                         role: Some(Role::Model),
                     }),
-                    finish_reason: FinishReason::Stop,
+                    finish_reason: Some(FinishReason::Stop),
                     safety_ratings: vec![
                         SafetyRating {
                             category: HarmCategory::SexuallyExplicit,
