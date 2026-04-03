@@ -24,12 +24,11 @@ pub fn sanitise_request_params(
             OpenAIModel::Gpt4oMini
             | OpenAIModel::Gpt4o
             | OpenAIModel::Gpt4_1Mini
-            | OpenAIModel::Gpt4_1Nano => match reasoning_effort {
-                Some(OpenAIReasoningEffort::XHigh) => {
+            | OpenAIModel::Gpt4_1Nano => {
+                if let Some(OpenAIReasoningEffort::XHigh) = reasoning_effort {
                     *reasoning_effort = Some(OpenAIReasoningEffort::High);
                 }
-                _ => {}
-            },
+            }
             OpenAIModel::Gpt5_1
             | OpenAIModel::Gpt5
             | OpenAIModel::Gpt5Mini

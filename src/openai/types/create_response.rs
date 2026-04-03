@@ -73,7 +73,9 @@ impl OpenAIResponsesCreateRequest {
             &mut self.prompt_cache_key,
             &mut self.prompt_cache_retention,
         );
-        self.reasoning.as_mut().map(|r| r.effort = effort);
+        if let Some(reasoning) = self.reasoning.as_mut() {
+            reasoning.effort = effort;
+        }
     }
 }
 
@@ -250,10 +252,11 @@ pub struct OpenAIImageGenerationTool {
 }
 
 /// GPT Image models for image generation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum OpenAIImageModel {
     /// Fast and cheap model (default)
     #[serde(rename = "gpt-image-1-mini")]
+    #[default]
     GptImage1Mini,
     /// Standard model
     #[serde(rename = "gpt-image-1")]
@@ -263,14 +266,8 @@ pub enum OpenAIImageModel {
     GptImage1_5,
 }
 
-impl Default for OpenAIImageModel {
-    fn default() -> Self {
-        OpenAIImageModel::GptImage1Mini
-    }
-}
-
 /// Image size options.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum OpenAIImageSize {
     #[serde(rename = "1024x1024")]
     Square1024,
@@ -279,66 +276,47 @@ pub enum OpenAIImageSize {
     #[serde(rename = "1024x1536")]
     Portrait,
     #[serde(rename = "auto")]
+    #[default]
     Auto,
 }
 
-impl Default for OpenAIImageSize {
-    fn default() -> Self {
-        OpenAIImageSize::Auto
-    }
-}
-
 /// Image quality options.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum OpenAIImageQuality {
     Low,
     Medium,
     High,
+    #[default]
     Auto,
 }
 
-impl Default for OpenAIImageQuality {
-    fn default() -> Self {
-        OpenAIImageQuality::Auto
-    }
-}
-
 /// Image background options.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum OpenAIImageBackground {
     Transparent,
     Opaque,
+    #[default]
     Auto,
 }
 
-impl Default for OpenAIImageBackground {
-    fn default() -> Self {
-        OpenAIImageBackground::Auto
-    }
-}
-
 /// Image output format options.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum OpenAIImageFormat {
+    #[default]
     Png,
     Webp,
     Jpeg,
 }
 
-impl Default for OpenAIImageFormat {
-    fn default() -> Self {
-        OpenAIImageFormat::Png
-    }
-}
-
 /// Action for image generation (gpt-image-1.5 only).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum OpenAIImageAction {
     /// Let the model decide (recommended)
+    #[default]
     Auto,
     /// Always generate a new image
     Generate,
@@ -346,24 +324,13 @@ pub enum OpenAIImageAction {
     Edit,
 }
 
-impl Default for OpenAIImageAction {
-    fn default() -> Self {
-        OpenAIImageAction::Auto
-    }
-}
-
 /// Input fidelity for image editing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum OpenAIImageInputFidelity {
+    #[default]
     High,
     Low,
-}
-
-impl Default for OpenAIImageInputFidelity {
-    fn default() -> Self {
-        OpenAIImageInputFidelity::High
-    }
 }
 
 /// Response object returned by POST /v1/responses.

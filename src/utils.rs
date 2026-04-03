@@ -39,7 +39,7 @@ impl Url {
 
     pub fn build(mut self) -> String {
         if !self.query.is_empty() {
-            self.url.push_str("?");
+            self.url.push('?');
             self.url.push_str(&self.query.join("&"));
         }
         self.url
