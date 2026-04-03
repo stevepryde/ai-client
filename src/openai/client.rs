@@ -131,10 +131,13 @@ where
 
     let byte_stream = response.bytes_stream();
 
-    // Create a stateful stream that accumulates bytes and parses SSE events
+    // Create a stateful stream that accumulates bytes and parses SSE events.
+    // We keep a byte remainder buffer for incomplete UTF-8 sequences that can
+    // occur when HTTP/2 chunks split in the middle of a multi-byte character.
+    let remainder: Vec<u8> = Vec::new();
     stream::unfold(
-        (byte_stream, String::new()),
-        |(mut byte_stream, mut buffer)| async move {
+        (byte_stream, String::new(), remainder),
+        |(mut byte_stream, mut buffer, mut remainder)| async move {
             loop {
                 // Try to parse a complete event from the buffer first
                 if let Some(double_newline_pos) = buffer.find("\n\n") {
@@ -153,7 +156,7 @@ where
                             tracing::trace!("Received SSE data chunk: {data}");
                             match serde_json::from_str::<T>(data) {
                                 Ok(chunk) => {
-                                    return Some((Ok(chunk), (byte_stream, buffer)));
+                                    return Some((Ok(chunk), (byte_stream, buffer, remainder)));
                                 }
                                 Err(e) => {
                                     tracing::error!("Failed to parse OpenAI stream chunk: {e:#}");
@@ -164,7 +167,7 @@ where
                                             None,
                                             Some(format!("Failed to parse JSON: {e}")),
                                         )),
-                                        (byte_stream, buffer),
+                                        (byte_stream, buffer, remainder),
                                     ));
                                 }
                             }
@@ -175,20 +178,32 @@ where
                 // Need more data from the stream
                 match byte_stream.next().await {
                     Some(Ok(bytes)) => {
-                        // Convert bytes to string and add to buffer
-                        match std::str::from_utf8(&bytes) {
+                        // Prepend any leftover bytes from previous incomplete UTF-8 sequence
+                        let combined = if remainder.is_empty() {
+                            bytes.to_vec()
+                        } else {
+                            let mut combined = std::mem::take(&mut remainder);
+                            combined.extend_from_slice(&bytes);
+                            combined
+                        };
+
+                        // Convert bytes to string, handling incomplete trailing UTF-8
+                        match std::str::from_utf8(&combined) {
                             Ok(text) => {
                                 buffer.push_str(text);
                             }
                             Err(e) => {
-                                return Some((
-                                    Err(StreamBodyError::new(
-                                        reqwest_streams::error::StreamBodyKind::CodecError,
-                                        None,
-                                        Some(format!("Invalid UTF-8 in response: {e}")),
-                                    )),
-                                    (byte_stream, buffer),
-                                ));
+                                // Add the valid prefix to the buffer
+                                let valid_up_to = e.valid_up_to();
+                                if valid_up_to > 0 {
+                                    // Safety: valid_up_to guarantees this slice is valid UTF-8
+                                    let valid = unsafe {
+                                        std::str::from_utf8_unchecked(&combined[..valid_up_to])
+                                    };
+                                    buffer.push_str(valid);
+                                }
+                                // Save the trailing incomplete bytes for the next chunk
+                                remainder = combined[valid_up_to..].to_vec();
                             }
                         }
                     }
@@ -199,7 +214,7 @@ where
                                 Some(Box::new(e)),
                                 None,
                             )),
-                            (byte_stream, buffer),
+                            (byte_stream, buffer, remainder),
                         ));
                     }
                     None => {

@@ -57,6 +57,7 @@ pub struct OpenAIResponseUsage {
     pub completion_tokens: u64,
     pub prompt_tokens: u64,
     pub total_tokens: u64,
+    // TODO: Add other fields as needed
 }
 
 /// Streaming response chunk from OpenAI API.
