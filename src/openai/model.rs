@@ -32,6 +32,7 @@ pub enum OpenAIModel {
     Gpt5Mini,
     Gpt5Nano,
     Gpt5_4Nano,
+    Gpt5_4Mini,
 }
 
 impl OpenAIModel {
@@ -47,6 +48,7 @@ impl OpenAIModel {
             OpenAIModel::Gpt5Mini => false,
             OpenAIModel::Gpt5Nano => false,
             OpenAIModel::Gpt5_4Nano => false,
+            OpenAIModel::Gpt5_4Mini => false,
         }
     }
 
@@ -62,6 +64,7 @@ impl OpenAIModel {
             OpenAIModel::Gpt5Mini => false,
             OpenAIModel::Gpt5Nano => false,
             OpenAIModel::Gpt5_4Nano => false,
+            OpenAIModel::Gpt5_4Mini => false,
         }
     }
 
@@ -77,6 +80,7 @@ impl OpenAIModel {
             OpenAIModel::Gpt5Mini => false,
             OpenAIModel::Gpt5Nano => false,
             OpenAIModel::Gpt5_4Nano => false,
+            OpenAIModel::Gpt5_4Mini => false,
         }
     }
 }
@@ -94,6 +98,7 @@ impl Display for OpenAIModel {
             OpenAIModel::Gpt5Mini => "gpt-5-mini",
             OpenAIModel::Gpt5Nano => "gpt-5-nano",
             OpenAIModel::Gpt5_4Nano => "gpt-5.4-nano",
+            OpenAIModel::Gpt5_4Mini => "gpt-5.4-mini",
         };
         write!(f, "{name}")
     }
@@ -114,6 +119,7 @@ impl FromStr for OpenAIModel {
             "gpt-5-mini" => Ok(OpenAIModel::Gpt5Mini),
             "gpt-5-nano" => Ok(OpenAIModel::Gpt5Nano),
             "gpt-5.4-nano" => Ok(OpenAIModel::Gpt5_4Nano),
+            "gpt-5.4-mini" => Ok(OpenAIModel::Gpt5_4Mini),
             _ => Err(AiError::InvalidModel),
         }
     }
