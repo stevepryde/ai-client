@@ -41,6 +41,16 @@ pub fn sanitise_request_params(
                 }
                 _ => {}
             },
+            OpenAIModel::Gpt5_4Pro | OpenAIModel::Gpt5_5Pro => {
+                if let Some(
+                    OpenAIReasoningEffort::None
+                    | OpenAIReasoningEffort::Minimal
+                    | OpenAIReasoningEffort::Low,
+                ) = reasoning_effort
+                {
+                    *reasoning_effort = Some(OpenAIReasoningEffort::Medium);
+                }
+            }
             _ => {}
         }
     }
@@ -84,4 +94,67 @@ pub struct OpenAIJsonSchema {
     pub description: String,
     pub schema: serde_json::Value,
     pub strict: Option<bool>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{sanitise_request_params, OpenAIReasoningEffort};
+    use crate::openai::OpenAIModel;
+
+    #[test]
+    fn keeps_gpt_5_4_and_5_5_supported_reasoning_effort() {
+        for model in [
+            OpenAIModel::Gpt5_4,
+            OpenAIModel::Gpt5_4Mini,
+            OpenAIModel::Gpt5_4Nano,
+            OpenAIModel::Gpt5_5,
+        ] {
+            let mut temperature = Some(0.7);
+            let mut reasoning_effort = Some(OpenAIReasoningEffort::XHigh);
+            let mut cache_key = Some("cache-key".to_string());
+            let mut cache_retention = Some("24h".to_string());
+
+            sanitise_request_params(
+                &model,
+                &mut temperature,
+                &mut reasoning_effort,
+                &mut cache_key,
+                &mut cache_retention,
+            );
+
+            assert_eq!(temperature, None);
+            assert!(matches!(
+                reasoning_effort,
+                Some(OpenAIReasoningEffort::XHigh)
+            ));
+            assert_eq!(cache_key.as_deref(), Some("cache-key"));
+            assert_eq!(cache_retention.as_deref(), Some("24h"));
+        }
+    }
+
+    #[test]
+    fn clamps_pro_models_to_supported_reasoning_effort() {
+        for model in [OpenAIModel::Gpt5_4Pro, OpenAIModel::Gpt5_5Pro] {
+            let mut temperature = Some(0.7);
+            let mut reasoning_effort = Some(OpenAIReasoningEffort::Low);
+            let mut cache_key = Some("cache-key".to_string());
+            let mut cache_retention = Some("24h".to_string());
+
+            sanitise_request_params(
+                &model,
+                &mut temperature,
+                &mut reasoning_effort,
+                &mut cache_key,
+                &mut cache_retention,
+            );
+
+            assert_eq!(temperature, None);
+            assert!(matches!(
+                reasoning_effort,
+                Some(OpenAIReasoningEffort::Medium)
+            ));
+            assert_eq!(cache_key, None);
+            assert_eq!(cache_retention, None);
+        }
+    }
 }
