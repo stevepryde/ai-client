@@ -29,18 +29,23 @@ pub fn sanitise_request_params(
                     *reasoning_effort = Some(OpenAIReasoningEffort::High);
                 }
             }
-            OpenAIModel::Gpt5_1
-            | OpenAIModel::Gpt5
-            | OpenAIModel::Gpt5Mini
-            | OpenAIModel::Gpt5Nano => match reasoning_effort {
+            OpenAIModel::Gpt5_1 | OpenAIModel::Gpt5 => match reasoning_effort {
                 Some(OpenAIReasoningEffort::XHigh) => {
                     *reasoning_effort = Some(OpenAIReasoningEffort::High);
                 }
                 Some(OpenAIReasoningEffort::Minimal) => {
-                    *reasoning_effort = Some(OpenAIReasoningEffort::None);
+                    *reasoning_effort = Some(OpenAIReasoningEffort::Low);
                 }
                 _ => {}
             },
+            OpenAIModel::Gpt5_4
+            | OpenAIModel::Gpt5_4Mini
+            | OpenAIModel::Gpt5_4Nano
+            | OpenAIModel::Gpt5_5 => {
+                if let Some(OpenAIReasoningEffort::Minimal) = reasoning_effort {
+                    *reasoning_effort = Some(OpenAIReasoningEffort::Low);
+                }
+            }
             OpenAIModel::Gpt5_4Pro | OpenAIModel::Gpt5_5Pro => {
                 if let Some(
                     OpenAIReasoningEffort::None
@@ -129,6 +134,34 @@ mod tests {
             ));
             assert_eq!(cache_key.as_deref(), Some("cache-key"));
             assert_eq!(cache_retention.as_deref(), Some("24h"));
+        }
+    }
+
+    #[test]
+    fn coerces_minimal_to_low_for_gpt_5_models_that_do_not_support_minimal() {
+        for model in [
+            OpenAIModel::Gpt5_1,
+            OpenAIModel::Gpt5,
+            OpenAIModel::Gpt5_4,
+            OpenAIModel::Gpt5_4Mini,
+            OpenAIModel::Gpt5_4Nano,
+            OpenAIModel::Gpt5_5,
+        ] {
+            let mut temperature = Some(0.7);
+            let mut reasoning_effort = Some(OpenAIReasoningEffort::Minimal);
+            let mut cache_key = Some("cache-key".to_string());
+            let mut cache_retention = Some("24h".to_string());
+
+            sanitise_request_params(
+                &model,
+                &mut temperature,
+                &mut reasoning_effort,
+                &mut cache_key,
+                &mut cache_retention,
+            );
+
+            assert_eq!(temperature, None);
+            assert!(matches!(reasoning_effort, Some(OpenAIReasoningEffort::Low)));
         }
     }
 
