@@ -8,13 +8,16 @@ use reqwest::header::{AUTHORIZATION, USER_AGENT};
 use reqwest_streams::error::StreamBodyError;
 use serde::{de::DeserializeOwned, Serialize};
 
-#[cfg(feature = "stream")]
-use crate::openai::{
-    create_chat_completion::OpenAIStreamChunk, create_response::OpenAIResponsesStreamEvent,
+#[cfg(all(feature = "chat-completions", feature = "stream"))]
+use crate::openai::create_chat_completion::OpenAIStreamChunk;
+#[cfg(feature = "chat-completions")]
+use crate::openai::create_chat_completion::{
+    OpenAIGenerateContentRequest, OpenAIGenerateContentResponse,
 };
+#[cfg(feature = "stream")]
+use crate::openai::create_response::OpenAIResponsesStreamEvent;
 use crate::{
     openai::{
-        create_chat_completion::{OpenAIGenerateContentRequest, OpenAIGenerateContentResponse},
         create_response::{OpenAIResponsesCreateRequest, OpenAIResponsesCreateResponse},
         list_models::{OpenAIModelInfo, OpenAIModelsListResponse},
     },
@@ -120,7 +123,7 @@ where
 
 #[cfg(feature = "stream")]
 /// Helper function to parse SSE streams from OpenAI API.
-/// This is used by both generate_content_streamed and generate_response_streamed.
+/// This is used by OpenAI streaming endpoints.
 async fn parse_sse_stream<T>(
     response: reqwest::Response,
 ) -> impl Stream<Item = Result<T, StreamBodyError>>
@@ -282,6 +285,7 @@ impl OpenAIClient {
     /// This method uses the Chat Completions API.
     /// The chat completions API is not recommended for new code.
     /// Please consider using the Responses API instead (generate_response).
+    #[cfg(feature = "chat-completions")]
     pub async fn generate_content(
         &self,
         mut request: OpenAIGenerateContentRequest,
@@ -294,7 +298,7 @@ impl OpenAIClient {
     /// This method uses the Chat Completions API.
     /// The chat completions API is not recommended for new code.
     /// Please consider using the Responses API instead (generate_response_streamed).
-    #[cfg(feature = "stream")]
+    #[cfg(all(feature = "chat-completions", feature = "stream"))]
     pub async fn generate_content_streamed(
         &self,
         mut request: OpenAIGenerateContentRequest,

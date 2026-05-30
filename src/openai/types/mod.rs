@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::openai::OpenAIModel;
 
+#[cfg(feature = "chat-completions")]
 pub mod create_chat_completion;
 pub mod create_response;
 pub mod list_models;

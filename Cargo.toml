@@ -6,13 +6,14 @@ homepage = "https://github.com/stevepryde/ai-client"
 license = "MIT OR Apache-2.0"
 name = "ai_client"
 repository = "https://github.com/stevepryde/ai-client"
-version = "0.2.4"
+version = "0.3.0"
 
 keywords = ["ai", "llm", "gemini", "client"]
 readme = "README.md"
 
 [features]
 default = ["rustls-tls"]
+chat-completions = []
 native-tls = ["reqwest/native-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
 stream = ["reqwest-streams", "futures"]
