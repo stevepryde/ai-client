@@ -441,8 +441,42 @@ pub enum OpenAIResponseOutputItem {
     /// Text message output.
     Message(OpenAIResponseMessageItem),
 
+    /// Reasoning summary item, emitted when reasoning is enabled.
+    Reasoning(OpenAIResponseReasoningItem),
+
     /// Image generation tool call result.
     ImageGenerationCall(OpenAIImageGenerationCallItem),
+
+    #[serde(other)]
+    Unknown,
+}
+
+/// "reasoning" item shape, emitted when reasoning is enabled. Carries the
+/// model's reasoning summary and, when requested via
+/// `include: ["reasoning.encrypted_content"]`, the opaque encrypted reasoning.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenAIResponseReasoningItem {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+
+    /// Reasoning summary parts. Empty when no summary was requested.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub summary: Vec<OpenAIReasoningSummaryPart>,
+
+    /// Opaque encrypted reasoning content; present only when explicitly included.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypted_content: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+}
+
+/// One part of a reasoning summary.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum OpenAIReasoningSummaryPart {
+    /// A chunk of human-readable reasoning summary text.
+    SummaryText { text: String },
 
     #[serde(other)]
     Unknown,
@@ -668,7 +702,10 @@ pub struct OpenAIResponse {
     pub created_at: u64,
     pub status: String,
     pub model: String,
-    pub output: Vec<OpenAIResponseMessageItem>,
+    /// Heterogeneous output items (message, reasoning, tool calls, …). Must use
+    /// the tagged enum, not the message struct: with reasoning enabled the array
+    /// includes a `type: "reasoning"` item that has no `role` field.
+    pub output: Vec<OpenAIResponseOutputItem>,
     pub usage: Option<OpenAIResponseUsage>,
 }
 
@@ -678,4 +715,74 @@ pub struct OpenAIStreamError {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event_id: Option<String>,
     pub error: Value,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A reasoning output item must deserialize to the typed `Reasoning` variant,
+    /// not the `Unknown` fallback.
+    #[test]
+    fn reasoning_output_item_deserializes() {
+        let json = r#"{
+            "type": "reasoning",
+            "id": "rs_abc123",
+            "summary": [{"type": "summary_text", "text": "Considered the options."}]
+        }"#;
+        let item: OpenAIResponseOutputItem = serde_json::from_str(json).unwrap();
+        match item {
+            OpenAIResponseOutputItem::Reasoning(r) => {
+                assert_eq!(r.id.as_deref(), Some("rs_abc123"));
+                assert_eq!(r.summary.len(), 1);
+                match &r.summary[0] {
+                    OpenAIReasoningSummaryPart::SummaryText { text } => {
+                        assert_eq!(text, "Considered the options.");
+                    }
+                    other => panic!("expected summary_text, got {other:?}"),
+                }
+            }
+            other => panic!("expected Reasoning variant, got {other:?}"),
+        }
+    }
+
+    /// Regression for "missing field `role`": a streaming lifecycle event whose
+    /// `output` array mixes a reasoning item (no `role`) with a message item must
+    /// parse. This is the exact shape `response.completed` sends when reasoning is
+    /// enabled, which previously failed to deserialize.
+    #[test]
+    fn response_completed_with_reasoning_item_parses() {
+        let json = r#"{
+            "type": "response.completed",
+            "sequence_number": 42,
+            "response": {
+                "id": "resp_1",
+                "object": "response",
+                "created_at": 0,
+                "status": "completed",
+                "model": "gpt-5",
+                "output": [
+                    {"type": "reasoning", "id": "rs_1", "summary": []},
+                    {"type": "message", "role": "assistant",
+                     "content": [{"type": "output_text", "text": "Hi.", "annotations": []}]}
+                ],
+                "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3}
+            }
+        }"#;
+        let event: OpenAIResponsesStreamEvent = serde_json::from_str(json).unwrap();
+        match event {
+            OpenAIResponsesStreamEvent::ResponseDone(done) => {
+                assert_eq!(done.response.output.len(), 2);
+                assert!(matches!(
+                    done.response.output[0],
+                    OpenAIResponseOutputItem::Reasoning(_)
+                ));
+                assert!(matches!(
+                    done.response.output[1],
+                    OpenAIResponseOutputItem::Message(_)
+                ));
+            }
+            other => panic!("expected ResponseDone, got {other:?}"),
+        }
+    }
 }
