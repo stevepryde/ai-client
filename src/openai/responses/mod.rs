@@ -1,7 +1,6 @@
 //! Compile-time checked request construction for OpenAI Responses.
 
 mod capability;
-mod dynamic;
 pub mod events;
 pub mod input;
 mod models;
@@ -14,7 +13,6 @@ mod tool_io;
 pub mod tools;
 
 pub use capability::*;
-pub use dynamic::*;
 pub use events::*;
 pub use input::*;
 pub use models::*;

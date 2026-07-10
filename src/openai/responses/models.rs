@@ -1,9 +1,12 @@
 use super::{
-    CodexReasoningEffort, ExtendedReasoningEffort, Gpt5ProReasoningEffort, Gpt5ReasoningEffort,
-    Gpt5_1ReasoningEffort, Gpt5_5PromptCacheRetention, Gpt5_6ReasoningEffort, OpenAIResponsesModel,
-    ProReasoningEffort, PromptCacheRetention, SupportsImageGenerationTool, SupportsItemInput,
-    SupportsPromptCacheKey, SupportsPromptCacheRetention, SupportsReasoning, SupportsSampling,
-    SupportsStructuredOutput,
+    CodexReasoningEffort, DefaultMode, ExtendedReasoningEffort, Gpt5ProReasoningEffort,
+    Gpt5ReasoningEffort, Gpt5_1ReasoningEffort, Gpt5_5PromptCacheRetention, Gpt5_6ReasoningEffort,
+    NoReasoningMode, OpenAIApplyPatchTool, OpenAICodeInterpreterTool, OpenAIComputerTool,
+    OpenAIFileSearchTool, OpenAIFunctionShellTool, OpenAIFunctionTool, OpenAIImageGenerationTool,
+    OpenAIMcpTool, OpenAIResponsesModel, OpenAIToolSearchTool, OpenAIWebSearchTool,
+    ProReasoningEffort, PromptCacheRetention, SamplingMode, SupportsImageGenerationTool,
+    SupportsItemInput, SupportsNoReasoning, SupportsPromptCacheKey, SupportsPromptCacheRetention,
+    SupportsReasoning, SupportsSamplingFrom, SupportsStructuredOutput, SupportsTool, SupportsTools,
 };
 
 macro_rules! models {
@@ -98,195 +101,46 @@ pub const REPRESENTATIVE_RESPONSE_MODEL_IDS: &[&str] =
 pub const PREVIEW_RESPONSE_MODEL_IDS: &[&str] =
     &[Gpt5_6::ID, Gpt5_6Sol::ID, Gpt5_6Terra::ID, Gpt5_6Luna::ID];
 
-// Capability evidence reviewed 2026-07-10.
-// Prompt caching: https://developers.openai.com/api/docs/guides/prompt-caching
-// Model capabilities: https://developers.openai.com/api/docs/models
-// The dedicated image-tool guide and each current model page are reviewed
-// together. Models with conflicting documentation remain available only
-// through the dynamic escape hatch:
-// https://developers.openai.com/api/docs/guides/tools-image-generation
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ModelEvidence {
-    pub id: &'static str,
-    pub url: &'static str,
-    pub reviewed: &'static str,
-    pub sampling: bool,
-    pub reasoning: &'static [&'static str],
-    pub cache_retentions: &'static [&'static str],
-    pub structured_output: bool,
-    pub image_tool: bool,
-}
-
-macro_rules! evidence {
-    ($id:literal, $sampling:literal, [$($reasoning:literal),*], [$($retention:literal),*], $structured:literal, $image:literal) => {
-        ModelEvidence {
-            id: $id,
-            url: concat!("https://developers.openai.com/api/docs/models/", $id),
-            reviewed: "2026-07-10",
-            sampling: $sampling,
-            reasoning: &[$($reasoning),*],
-            cache_retentions: &[$($retention),*],
-            structured_output: $structured,
-            image_tool: $image,
-        }
-    };
-}
-
-pub(crate) const MODEL_EVIDENCE: &[ModelEvidence] = &[
-    evidence!("gpt-4o-mini", true, [], [], true, true),
-    evidence!("gpt-4o", true, [], [], true, true),
-    evidence!("gpt-4.1", true, [], ["in_memory", "24h"], true, true),
-    evidence!("gpt-4.1-mini", true, [], [], true, true),
-    evidence!("gpt-4.1-nano", true, [], [], true, true),
-    evidence!(
-        "gpt-5.1",
-        false,
-        ["none", "low", "medium", "high"],
-        ["in_memory", "24h"],
-        true,
-        false
-    ),
-    evidence!(
-        "gpt-5",
-        false,
-        ["minimal", "low", "medium", "high"],
-        ["in_memory", "24h"],
-        true,
-        true
-    ),
-    evidence!(
-        "gpt-5-mini",
-        false,
-        ["minimal", "low", "medium", "high"],
-        [],
-        true,
-        false
-    ),
-    evidence!(
-        "gpt-5-nano",
-        false,
-        ["minimal", "low", "medium", "high"],
-        [],
-        true,
-        true
-    ),
-    evidence!("gpt-5-pro", false, ["high"], [], true, false),
-    evidence!(
-        "gpt-5.2",
-        false,
-        ["none", "low", "medium", "high", "xhigh"],
-        [],
-        true,
-        false
-    ),
-    evidence!(
-        "gpt-5.2-pro",
-        false,
-        ["medium", "high", "xhigh"],
-        [],
-        false,
-        false
-    ),
-    evidence!(
-        "gpt-5.3-codex",
-        false,
-        ["low", "medium", "high", "xhigh"],
-        [],
-        true,
-        false
-    ),
-    evidence!(
-        "gpt-5.4",
-        false,
-        ["none", "low", "medium", "high", "xhigh"],
-        ["in_memory", "24h"],
-        true,
-        false
-    ),
-    evidence!(
-        "gpt-5.4-pro",
-        false,
-        ["medium", "high", "xhigh"],
-        [],
-        false,
-        false
-    ),
-    evidence!(
-        "gpt-5.4-mini",
-        false,
-        ["none", "low", "medium", "high", "xhigh"],
-        [],
-        true,
-        true
-    ),
-    evidence!(
-        "gpt-5.4-nano",
-        false,
-        ["none", "low", "medium", "high", "xhigh"],
-        [],
-        true,
-        true
-    ),
-    evidence!(
-        "gpt-5.5",
-        false,
-        ["none", "low", "medium", "high", "xhigh"],
-        ["24h"],
-        true,
-        true
-    ),
-    evidence!(
-        "gpt-5.5-pro",
-        false,
-        ["medium", "high", "xhigh"],
-        ["24h"],
-        true,
-        false
-    ),
-    evidence!(
-        "gpt-5.6",
-        false,
-        ["none", "low", "medium", "high", "xhigh", "max"],
-        [],
-        true,
-        true
-    ),
-    evidence!(
-        "gpt-5.6-sol",
-        false,
-        ["none", "low", "medium", "high", "xhigh", "max"],
-        [],
-        true,
-        true
-    ),
-    evidence!(
-        "gpt-5.6-terra",
-        false,
-        ["none", "low", "medium", "high", "xhigh", "max"],
-        [],
-        true,
-        true
-    ),
-    evidence!(
-        "gpt-5.6-luna",
-        false,
-        ["none", "low", "medium", "high", "xhigh", "max"],
-        [],
-        true,
-        true
-    ),
-];
+// Capability evidence reviewed 2026-07-10 from the official model pages and
+// verified against the live Responses API for GPT-5.1 and GPT-5.4. Sampling on
+// those two models is accepted only when reasoning is omitted/default-none or
+// explicitly set to none; the request typestate encodes that dependency.
 
 macro_rules! impl_trait {
     ($trait:ident: $($model:ty),+ $(,)?) => { $(impl $trait for $model {})+ };
 }
 
-impl_trait!(SupportsSampling: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano);
+macro_rules! sampling_from {
+    ($state:ty: $($model:ty),+ $(,)?) => { $(
+        impl SupportsSamplingFrom<$state> for $model {}
+    )+ };
+}
+
+sampling_from!(DefaultMode: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
+sampling_from!(NoReasoningMode: Gpt5_1, Gpt5_4);
+sampling_from!(SamplingMode: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
 impl_trait!(SupportsPromptCacheKey: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5Pro, Gpt5_2, Gpt5_2Pro, Gpt5_3Codex, Gpt5_4, Gpt5_4Pro, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
 impl_trait!(SupportsStructuredOutput: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5Pro, Gpt5_2, Gpt5_3Codex, Gpt5_4, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
-impl_trait!(SupportsImageGenerationTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5, Gpt5Nano, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
+impl_trait!(SupportsImageGenerationTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5, Gpt5Nano, Gpt5_4, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
 impl_trait!(SupportsItemInput: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5Pro, Gpt5_2, Gpt5_2Pro, Gpt5_3Codex, Gpt5_4, Gpt5_4Pro, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
+
+macro_rules! tool {
+    ($tool:ty: $($model:ty),+ $(,)?) => { $(
+        impl SupportsTool<$tool> for $model {}
+    )+ };
+}
+
+impl_trait!(SupportsTools: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
+tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
+tool!(OpenAIFileSearchTool: Gpt5_4);
+tool!(OpenAIComputerTool: Gpt5_4);
+tool!(OpenAIWebSearchTool: Gpt5_4);
+tool!(OpenAIMcpTool: Gpt5_4);
+tool!(OpenAICodeInterpreterTool: Gpt5_4);
+tool!(OpenAIImageGenerationTool: Gpt5_4);
+tool!(OpenAIFunctionShellTool: Gpt5_4);
+tool!(OpenAIToolSearchTool: Gpt5_4);
+tool!(OpenAIApplyPatchTool: Gpt5_4);
 
 macro_rules! reasoning {
     ($effort:ty: $($model:ty),+ $(,)?) => { $(
@@ -302,6 +156,8 @@ reasoning!(ProReasoningEffort: Gpt5_2Pro, Gpt5_4Pro, Gpt5_5Pro);
 reasoning!(CodexReasoningEffort: Gpt5_3Codex);
 reasoning!(Gpt5_6ReasoningEffort: Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
 
+impl_trait!(SupportsNoReasoning: Gpt5_1, Gpt5_2, Gpt5_4, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
+
 macro_rules! retention {
     ($retention:ty: $($model:ty),+ $(,)?) => { $(
         impl SupportsPromptCacheRetention for $model { type Retention = $retention; }
@@ -315,7 +171,7 @@ retention!(Gpt5_5PromptCacheRetention: Gpt5_5, Gpt5_5Pro);
 mod tests {
     use super::*;
 
-    fn sampling<M: SupportsSampling>() {}
+    fn sampling<M: SupportsSamplingFrom<DefaultMode>>() {}
     fn reasoning<M: SupportsReasoning>() {}
     fn retention<M: SupportsPromptCacheRetention>() {}
     fn image_tool<M: SupportsImageGenerationTool>() {}
@@ -324,6 +180,8 @@ mod tests {
     #[test]
     fn representative_positive_capability_bounds_compile() {
         sampling::<Gpt4o>();
+        sampling::<Gpt5_1>();
+        sampling::<Gpt5_4>();
         reasoning::<Gpt5>();
         reasoning::<Gpt5Pro>();
         reasoning::<Gpt5_2>();

@@ -15,7 +15,7 @@ Stack contract: [`stack.md`](stack.md)
 - Advance this roadmap through the largest coherent unblocked units, beginning with the highest-risk foundation.
 - Keep provider-native APIs full fidelity; no universal lowest-common-denominator request.
 - Make typed model markers and capability-bounded builders the default known-model path, erasing into private non-generic wire requests.
-- Keep dynamic model IDs explicit and runtime-validated.
+- Require typed native OpenAI Responses model markers; runtime selection uses a closed application enum and typed match arms.
 - Keep OpenAI Responses primary, deprecate native OpenAI Chat Completions, and preserve Chat-Completions-shaped interoperability in a separate typed `openai_compatible` dialect family.
 - Do not release or tag an implementation unit unless it intentionally completes the release contract in `AGENTS.md`.
 
@@ -25,7 +25,7 @@ Stack contract: [`stack.md`](stack.md)
 | --- | --- | --- | --- |
 | F1 — safe shared JSON transport | accepted | Private client state, same-origin relative paths, shared non-streaming transport, typed errors/metadata, TLS wiring, encoded query/path data | **test-only**: 34 unit/integration tests, one doctest, full feature matrix, TLS/stream dependency-tree checks, and independent review; no live-provider smoke |
 | F2 — streaming transport | accepted | Crate-owned SSE and internal byte streams, handshake errors/metadata, wire stream invariants, adversarial framing and JSON-array tests | **test-only**: 42 unit/integration tests, one doctest, full stream feature matrix/dependency-tree checks, and independent review; no live-provider smoke |
-| F3 — typed model requests | accepted | OpenAI Responses known-model markers, resource-scoped capabilities, input-typestate builders, non-generic wire erasure, and explicit dynamic requests | **test-only**: 49 unit/integration tests, four compile-pass and ten compile-fail fixtures, one doctest, full feature matrix, and independent review; no live-provider smoke |
+| F3 — typed model requests | accepted, corrected | OpenAI Responses known-model markers, resource-scoped capabilities, mode-typestate builders, and non-generic wire erasure; the later live correction removed dynamic native requests | Compile-pass/fail fixtures plus live GPT-5.1/GPT-5.4 mode matrices |
 | F4 — compatibility separation | accepted | Native Chat Completions deprecation and typed `openai_compatible` dialect framework | **test-only**: 58 unit/integration tests, four compatibility compile-pass and twelve compile-fail fixtures, doctests, full feature matrix, and independent review; no live-provider smoke |
 | F5 — Responses refactor and parity | accepted | Focused resource modules, operation parity, lossless unknown variants, typed closed schemas, and Conversations | **test-only**: pinned-source verification, 7/7 Responses and 8/8 Conversations operations, 116 runtime tests, five Responses compile-pass and nine compile-fail fixtures, compatibility fixtures, doctests, strict clippy, full feature matrix, and independent review; no live-provider smoke |
 | F6 — standalone Images API | pending | Generation, edits, variations, multipart inputs, binary/base64 outputs, and supported partial-image streaming | Pinned Images coverage matrix, exact mock multipart/binary/stream fixtures, and opt-in live smoke |
@@ -57,11 +57,10 @@ Stack contract: [`stack.md`](stack.md)
 - F3 owns native OpenAI Responses request construction end to end. `OpenAIModel` remains for model retrieval and legacy Chat Completions, but Responses moves to resource-scoped marker types implementing the unsealed `OpenAIResponsesModel` trait.
 - The initial checked-in marker manifest covers every model ID already supported by this crate. Capability implementations cover the temperature/sampling, reasoning-effort, prompt-caching, structured-output, and image-tool settings only where current official evidence supports them; legacy sanitizer matches are not treated as evidence.
 - Reasoning uses associated effort types so standard, extended/xhigh, and pro model families expose only their accepted values. Sampling and prompt-cache methods exist only behind their exact capability bounds.
-- Conditional combinations that would cause combinatorial typestate are conservatively unavailable on the known-model builder until a reviewed model-specific bundled method is justified. The explicit dynamic path preserves full request fidelity without silently deleting or coercing fields.
+- Conditional combinations use focused mode typestate where the provider contract depends on another field. GPT-5.1/GPT-5.4 sampling versus reasoning is encoded in the builder state and verified live.
 - `ResponseRequestBuilder<M, MissingInput>` uses typestate only for required input. `build()` exists only for `HasInput` and erases immediately into `PreparedResponseRequest`, which owns one private, non-generic wire request. Both streamed and non-streamed client paths accept the same prepared type and continue to own the wire stream switch.
-- `PreparedResponseRequest` keeps prompts and wire fields private, redacts `Debug`, and exposes dynamic validation warnings without exposing the wire request or stream switch.
-- `DynamicOpenAIModel` validates model-ID syntax. `DynamicResponseRequestBuilder` reuses the private wire request, never coerces/deletes settings, and supports `ValidationMode::{Off, Warn, Strict}` against a versioned `ResponseModelCapabilitiesCatalog` boundary. `Warn` stores warnings on the prepared request; `Strict` returns a build error for a missing catalog, unknown model, or unsupported configured setting.
-- The crate provides a checked-in static catalog and no network refresh mechanism. Callers may provide their own catalog and may define local model markers/capability implementations for native OpenAI fine-tuned models and aliases. Compatibility gateways remain owned by F4's separate dialect family.
+- `PreparedResponseRequest` keeps prompts and wire fields private and redacts `Debug` without exposing the wire request or stream switch.
+- Native OpenAI Responses has no string-model request builder or runtime capability catalog. Callers define local model markers for fine-tuned models and aliases. Compatibility gateways remain owned by F4's separate dialect family.
 - Direct public construction of the old Responses wire request and its invariant-bypassing generated builder is removed in this planned `0.4.0` breaking slice rather than retained as a duplicate API.
 - F3 compile-checks only the stable settings it owns. Input modality safety and complete structured-output/tool capability modeling remain deferred to the F5 input/tool union refactor; F4 compatibility dialects reuse the pattern but do not inherit native OpenAI guarantees.
 
@@ -108,7 +107,7 @@ This roadmap deliberately prioritizes the transport and type-system foundations 
 2. **Share transport mechanics, not provider semantics.** Authentication, JSON, multipart, binary bodies, SSE, pagination, retries, and error decoding belong in a common internal core.
 3. **Organize OpenAI by resource.** The current product boundary is `client.responses()` and `client.images()`; already-completed Conversations support remains as the durable state companion to Responses.
 4. **Deprecate OpenAI's native Chat Completions surface.** Keep it default-off for migration, direct new OpenAI work to Responses, and move reusable compatibility support into a separate typed `openai_compatible` provider family. Do not implement the deprecated Assistants/Threads API unless a concrete downstream migration requirement appears.
-5. **Offer typed known models and an explicit dynamic escape hatch.** Typed model markers provide compile-time capability checks; arbitrary model IDs remain available through a clearly dynamic path. Unknown response variants must retain their raw payload.
+5. **Keep native Responses model selection typed.** Runtime selection uses closed application enums and typed match arms; custom aliases use explicit marker types. Unknown response variants still retain their raw payload.
 6. **Do not create a workspace yet.** Keep one crate while the providers share the same light dependency set. Reassess a split only when a third substantial provider or another deliberately approved heavy subsystem lands.
 7. **Treat the official OpenAPI document as a coverage oracle, not as the public Rust API.** Pin it for drift checks and selective code generation, while keeping reviewed, idiomatic public types.
 8. **Unification must be additive, never restrictive.** Full-fidelity native requests remain canonical. Static generic code uses associated provider types; runtime switching uses an explicitly portable request plus typed per-backend defaults or a closed enum of native requests.
@@ -411,7 +410,7 @@ pub enum TextBackend {
 
 The user-owned backend enum closes over the exact provider/model configurations supported by that application. Each backend converts the portable request, merges its typed defaults, and calls the native API. Adding or changing a provider/model then produces compile errors until the corresponding typed configuration and match arms exist. This supports runtime failover while still allowing an OpenAI backend to use reasoning, tools, caching, or structured output by default.
 
-If the model ID itself comes from a config file and is not known at compile time, the backend must use the explicit dynamic model/config type and accept runtime validation for that part. Provider configuration can still remain provider-specific and statically typed.
+If model selection comes from configuration, parse it into a closed application enum and match each variant to a typed model builder. Unknown values are configuration errors; they do not fall through to a string-model request.
 
 For provider-specific settings that vary per call, use one of these explicit paths:
 
@@ -423,7 +422,7 @@ Do not use `serde_json::Value`, `Any`, string-keyed extension maps, or a struct 
 
 ### Model-specific capabilities
 
-Provider-specific and model-specific compile-time checks should be the default for known models. Runtime/advisory validation is the explicit fallback for dynamic model IDs, not the primary API.
+Provider-specific and model-specific compile-time checks are mandatory for native OpenAI Responses requests.
 
 Use resource-scoped model marker traits:
 
@@ -482,25 +481,12 @@ Capability traits must be scoped to the resource or protocol (`openai::responses
 
 Only encode relatively stable request-shape rules in the type system: whether a setting exists, which setting type it accepts, and which modality/tool family is legal. Keep account entitlements, staged rollouts, regions, quotas, rate limits, and other deployment state as runtime errors. This prevents typestate from becoming a brittle mirror of server operations.
 
-#### Dynamic and custom models
+#### Custom models
 
-Compile-time checking cannot cover a model selected from configuration at runtime or a model released after the crate. Make that loss of static guarantees explicit:
-
-```rust,ignore
-let model = DynamicOpenAIModel::new(config.model_id);
-let request = DynamicResponseRequest::builder(model)
-    .validation(ValidationMode::Strict)
-    .build()?;
-```
-
-- Keep `DynamicOpenAIModel`/`DynamicResponseRequest` separate from the typed path rather than weakening every request to `String`.
-- Validate dynamic requests against an optional refreshable `ModelCapabilities` catalog in `Warn` or `Strict` mode.
-- Never silently delete or coerce unsupported settings.
-- Permit advanced users to define a local model marker and opt into capability traits for fine-tuned or gateway models. This makes the assertion compile-time visible and puts responsibility on the caller without requiring a crate release.
+- Parse runtime configuration into a closed application enum whose match arms use typed model markers.
+- Permit advanced users to define a local model marker and opt into capability traits for fine-tuned models and aliases. This makes the assertion compile-time visible and puts responsibility on the caller without requiring a crate release.
 - Do not seal model/capability traits unless an invariant truly cannot be upheld by downstream implementations.
 - Document that compile-time support reflects the crate's pinned provider specification; live APIs can still change, so compile-time checks complement rather than replace wire fixtures and opt-in live tests.
-
-The default ergonomic path is therefore statically checked; dynamic behavior is deliberate and visible in the type name.
 
 #### Implementation shape: generic facade, non-generic wire core
 
@@ -558,15 +544,13 @@ The module layout above is intentionally compatible with that later split.
 
 ### Identifiers and models
 
-- [x] Replace closed Responses model selection with typed known-model markers plus an explicit dynamic model/request path. `OpenAIModel` remains intentionally scoped to model retrieval and legacy Chat Completions.
+- [x] Replace closed Responses model selection with typed known-model markers. `OpenAIModel` remains intentionally scoped to model retrieval and legacy Chat Completions.
 - [x] Make native Responses request construction generic over its model marker, then erase it into one private non-generic wire request before transport.
 - [x] Add resource-scoped capability traits and capability-bounded builder methods for known models.
 - [x] Use associated setting types for capabilities whose valid values differ by model.
-- [x] Accept arbitrary aliases, snapshots, and fine-tuned model IDs through the dynamic path or downstream-defined native model markers. OpenAI-compatible gateway names remain owned by F4's separate dialect family.
+- [x] Accept aliases, snapshots, and fine-tuned model IDs through downstream-defined native model markers. OpenAI-compatible gateway names remain owned by F4's separate dialect family.
 - [ ] Add resource ID newtypes where mixing IDs would be dangerous (`ResponseId`, `ConversationId`, `FileId`, `VectorStoreId`).
-- [x] Do not rewrite a request based on a capability table. Typed requests fail to compile; dynamic requests return structured warnings/errors.
-- [x] Make dynamic validation explicit through `ValidationMode::{Off, Warn, Strict}`.
-- [x] Treat the dynamic capability catalog as advisory and versionable. Unknown models remain usable when validation is not strict.
+- [x] Do not rewrite a request based on a capability table. Invalid native Responses combinations fail to compile.
 
 ### Request and response compatibility
 
@@ -624,7 +608,7 @@ The official documented OpenAPI file currently contains roughly 178 path entries
 - [x] Replace query string concatenation with encoded query serialization.
 - [x] Replace the SSE parser and add adversarial chunk-boundary tests.
 - [x] Make streaming and non-streaming entry points own their wire mode automatically.
-- [x] Introduce typed known-model markers, capability-bounded builders, and an explicit dynamic model/validation path.
+- [x] Introduce typed known-model markers and capability-bounded builders; later remove the dynamic native path after live testing proved it bypassed invariants.
 - [ ] Split Responses types into focused modules before expanding their unions.
 - [x] Add mock HTTP tests for success, provider errors, malformed bodies, non-JSON bodies, timeouts, rate limits, and stream handshake errors for the existing provider operations.
 
@@ -816,7 +800,7 @@ Exact defaults can remain backward-compatible for `0.4.0`, but the invariants ar
 
 1. **Foundation:** private client state, shared transport, same-origin paths, typed errors/metadata, TLS wiring, encoded queries.
 2. **Streaming:** crate-owned SSE and byte streams, status handling, stream-mode invariants, adversarial tests.
-3. **Extensible types:** typed model markers, capability traits, dynamic model/resource IDs, explicit validation, unknown raw payloads, request options escape hatch.
+3. **Extensible types:** typed model markers, capability traits, typed resource IDs, unknown raw payloads, and request options.
 4. **Compatibility separation:** deprecate native OpenAI Chat Completions, extract private reusable wire pieces, and add resource-scoped `openai_compatible` dialect traits plus initial adapters.
 5. **Responses refactor and parity:** split modules, full request/item/tool/event coverage, lifecycle operations, Conversations.
 6. **Standalone Images:** generation, edits, variations, multipart inputs, binary/base64 outputs, and supported image streaming.

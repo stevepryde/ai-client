@@ -7,20 +7,20 @@ use super::{options::*, wire::*};
 pub struct ResponseRequest<M: OpenAIResponsesModel>(PhantomData<fn() -> M>);
 
 impl<M: OpenAIResponsesModel> ResponseRequest<M> {
-    pub fn builder() -> ResponseRequestBuilder<M> {
+    pub fn builder() -> ResponseRequestBuilder<M, DefaultMode> {
         ResponseRequestBuilder {
             wire: OpenAIResponsesWireRequest::new(M::ID.to_string()),
-            model: PhantomData,
+            state: PhantomData,
         }
     }
 }
 
-pub struct ResponseRequestBuilder<M: OpenAIResponsesModel> {
+pub struct ResponseRequestBuilder<M: OpenAIResponsesModel, State = DefaultMode> {
     wire: OpenAIResponsesWireRequest,
-    model: PhantomData<fn() -> M>,
+    state: PhantomData<fn() -> (M, State)>,
 }
 
-impl<M: OpenAIResponsesModel> ResponseRequestBuilder<M> {
+impl<M: OpenAIResponsesModel, State> ResponseRequestBuilder<M, State> {
     pub fn input_text(mut self, input: impl Into<String>) -> Self {
         self.wire.input = Some(OpenAIResponsesInput::Text(input.into()));
         self
@@ -76,6 +76,26 @@ impl<M: OpenAIResponsesModel> ResponseRequestBuilder<M> {
         self
     }
 
+    pub fn tool<T>(mut self, tool: T) -> Self
+    where
+        T: IntoResponsesTool,
+        M: SupportsTool<T>,
+    {
+        self.wire
+            .tools
+            .get_or_insert_with(Vec::new)
+            .push(tool.into_responses_tool());
+        self
+    }
+
+    pub fn tool_choice(mut self, choice: OpenAIToolChoice) -> Self
+    where
+        M: SupportsTools,
+    {
+        self.wire.tool_choice = Some(choice);
+        self
+    }
+
     pub fn include(mut self, include: ResponseInclude) -> Self {
         self.wire.include.get_or_insert_with(Vec::new).push(include);
         self
@@ -112,31 +132,48 @@ impl<M: OpenAIResponsesModel> ResponseRequestBuilder<M> {
     }
 }
 
-impl<M: SupportsItemInput> ResponseRequestBuilder<M> {
+impl<M: SupportsItemInput, State> ResponseRequestBuilder<M, State> {
     pub fn input_items(mut self, items: Vec<OpenAIResponseInputItem>) -> Self {
         self.wire.input = Some(OpenAIResponsesInput::Items(items));
         self
     }
 }
 
-impl<M: SupportsSampling> ResponseRequestBuilder<M> {
-    pub fn top_logprobs(mut self, top_logprobs: TopLogprobs) -> Self {
-        self.wire.top_logprobs = Some(top_logprobs);
-        self
-    }
-    pub fn temperature(mut self, temperature: Temperature) -> Self {
-        self.wire.temperature = Some(temperature.get());
-        self
+impl<M, State> ResponseRequestBuilder<M, State>
+where
+    M: SupportsSamplingFrom<State>,
+{
+    fn into_sampling_mode(self) -> ResponseRequestBuilder<M, SamplingMode> {
+        ResponseRequestBuilder {
+            wire: self.wire,
+            state: PhantomData,
+        }
     }
 
-    pub fn top_p(mut self, top_p: TopP) -> Self {
+    pub fn top_logprobs(
+        mut self,
+        top_logprobs: TopLogprobs,
+    ) -> ResponseRequestBuilder<M, SamplingMode> {
+        self.wire.top_logprobs = Some(top_logprobs);
+        self.into_sampling_mode()
+    }
+
+    pub fn temperature(
+        mut self,
+        temperature: Temperature,
+    ) -> ResponseRequestBuilder<M, SamplingMode> {
+        self.wire.temperature = Some(temperature.get());
+        self.into_sampling_mode()
+    }
+
+    pub fn top_p(mut self, top_p: TopP) -> ResponseRequestBuilder<M, SamplingMode> {
         self.wire.top_p = Some(top_p.get());
-        self
+        self.into_sampling_mode()
     }
 }
 
-impl<M: SupportsReasoning> ResponseRequestBuilder<M> {
-    pub fn reasoning(mut self, effort: M::Effort) -> Self {
+impl<M: SupportsReasoning> ResponseRequestBuilder<M, DefaultMode> {
+    pub fn reasoning(mut self, effort: M::Effort) -> ResponseRequestBuilder<M, ReasoningMode> {
         self.wire.reasoning = Some(OpenAIResponsesReasoning {
             mode: None,
             effort: Some(effort.into_reasoning_effort()),
@@ -145,7 +182,10 @@ impl<M: SupportsReasoning> ResponseRequestBuilder<M> {
             generate_summary: None,
             extra: Default::default(),
         });
-        self
+        ResponseRequestBuilder {
+            wire: self.wire,
+            state: PhantomData,
+        }
     }
 
     pub fn reasoning_details(
@@ -153,7 +193,7 @@ impl<M: SupportsReasoning> ResponseRequestBuilder<M> {
         effort: M::Effort,
         summary: Option<crate::openai::responses::OpenAIReasoningSummary>,
         context: Option<crate::openai::responses::OpenAIReasoningContext>,
-    ) -> Self {
+    ) -> ResponseRequestBuilder<M, ReasoningMode> {
         self.wire.reasoning = Some(OpenAIResponsesReasoning {
             mode: None,
             effort: Some(effort.into_reasoning_effort()),
@@ -162,18 +202,38 @@ impl<M: SupportsReasoning> ResponseRequestBuilder<M> {
             generate_summary: None,
             extra: Default::default(),
         });
-        self
+        ResponseRequestBuilder {
+            wire: self.wire,
+            state: PhantomData,
+        }
     }
 }
 
-impl<M: SupportsPromptCacheKey> ResponseRequestBuilder<M> {
+impl<M: SupportsNoReasoning> ResponseRequestBuilder<M, DefaultMode> {
+    pub fn reasoning_none(mut self) -> ResponseRequestBuilder<M, NoReasoningMode> {
+        self.wire.reasoning = Some(OpenAIResponsesReasoning {
+            mode: None,
+            effort: Some(crate::openai::OpenAIReasoningEffort::None),
+            summary: None,
+            context: None,
+            generate_summary: None,
+            extra: Default::default(),
+        });
+        ResponseRequestBuilder {
+            wire: self.wire,
+            state: PhantomData,
+        }
+    }
+}
+
+impl<M: SupportsPromptCacheKey, State> ResponseRequestBuilder<M, State> {
     pub fn prompt_cache_key(mut self, key: impl Into<String>) -> Self {
         self.wire.prompt_cache_key = Some(key.into());
         self
     }
 }
 
-impl<M: SupportsPromptCacheRetention> ResponseRequestBuilder<M> {
+impl<M: SupportsPromptCacheRetention, State> ResponseRequestBuilder<M, State> {
     pub fn prompt_cache_retention(mut self, retention: M::Retention) -> Self {
         self.wire.prompt_cache_retention =
             Some(retention.into_prompt_cache_retention().to_string());
@@ -181,7 +241,7 @@ impl<M: SupportsPromptCacheRetention> ResponseRequestBuilder<M> {
     }
 }
 
-impl<M: SupportsStructuredOutput> ResponseRequestBuilder<M> {
+impl<M: SupportsStructuredOutput, State> ResponseRequestBuilder<M, State> {
     pub fn json_schema(mut self, schema: OpenAIJsonSchema) -> Self {
         self.wire.text = Some(OpenAIResponsesTextConfig {
             format: Some(OpenAIResponsesTextFormat::JsonSchema(schema.into())),
@@ -197,7 +257,7 @@ impl<M: SupportsStructuredOutput> ResponseRequestBuilder<M> {
     }
 }
 
-impl<M: SupportsImageGenerationTool> ResponseRequestBuilder<M> {
+impl<M: SupportsImageGenerationTool, State> ResponseRequestBuilder<M, State> {
     pub fn image_generation_tool(mut self, tool: OpenAIImageGenerationTool) -> Self {
         self.wire
             .tools
@@ -207,8 +267,8 @@ impl<M: SupportsImageGenerationTool> ResponseRequestBuilder<M> {
     }
 }
 
-impl<M: OpenAIResponsesModel> ResponseRequestBuilder<M> {
+impl<M: OpenAIResponsesModel, State> ResponseRequestBuilder<M, State> {
     pub fn build(self) -> PreparedResponseRequest {
-        PreparedResponseRequest::new(self.wire, Vec::new())
+        PreparedResponseRequest::new(self.wire)
     }
 }

@@ -1,0 +1,12 @@
+error[E0599]: no method named `reasoning` found for struct `ResponseRequestBuilder<ai_client::openai::responses::Gpt5_4, SamplingMode>` in the current scope
+ --> tests/ui/fail_gpt54_reasoning_after_temperature.rs:8:10
+  |
+6 |       let _ = ResponseRequest::<Gpt5_4>::builder()
+  |  _____________-
+7 | |         .temperature(Temperature::new(0.5).unwrap())
+8 | |         .reasoning(ExtendedReasoningEffort::Low)
+  | |         -^^^^^^^^^ method not found in `ResponseRequestBuilder<ai_client::openai::responses::Gpt5_4, SamplingMode>`
+  | |_________|
+  |
+  |
+  = note: the method was found for `ResponseRequestBuilder<M>`

@@ -3,30 +3,25 @@ use std::fmt;
 use serde::{Serialize, Serializer};
 
 use crate::openai::responses::{
-    dynamic::ValidationWarning, CreateResponseStreamOptions, OpenAIContextCompaction,
-    OpenAIConversationReference, OpenAIModerationConfig, OpenAIPromptCacheOptions,
-    OpenAIPromptTemplate, OpenAIResponseMetadata, OpenAIResponsesInput, OpenAIResponsesReasoning,
-    OpenAIResponsesTextConfig, OpenAIResponsesTool, OpenAIServiceTier, OpenAIToolChoice,
-    OpenAITruncation, ResponseId, ResponseInclude, TopLogprobs,
+    CreateResponseStreamOptions, OpenAIContextCompaction, OpenAIConversationReference,
+    OpenAIModerationConfig, OpenAIPromptCacheOptions, OpenAIPromptTemplate, OpenAIResponseMetadata,
+    OpenAIResponsesInput, OpenAIResponsesReasoning, OpenAIResponsesTextConfig, OpenAIResponsesTool,
+    OpenAIServiceTier, OpenAIToolChoice, OpenAITruncation, ResponseId, ResponseInclude,
+    TopLogprobs,
 };
 
 #[derive(Clone)]
 pub struct PreparedResponseRequest {
     wire: OpenAIResponsesWireRequest,
-    warnings: Vec<ValidationWarning>,
 }
 
 impl PreparedResponseRequest {
-    pub fn warnings(&self) -> &[ValidationWarning] {
-        &self.warnings
-    }
-
     pub fn model_id(&self) -> &str {
         &self.wire.model
     }
 
-    pub(crate) fn new(wire: OpenAIResponsesWireRequest, warnings: Vec<ValidationWarning>) -> Self {
-        Self { wire, warnings }
+    pub(crate) fn new(wire: OpenAIResponsesWireRequest) -> Self {
+        Self { wire }
     }
 
     pub(crate) fn wire_mut(&mut self) -> &mut OpenAIResponsesWireRequest {
@@ -39,7 +34,6 @@ impl fmt::Debug for PreparedResponseRequest {
         f.debug_struct("PreparedResponseRequest")
             .field("model", &self.wire.model)
             .field("request", &"[redacted]")
-            .field("warnings", &self.warnings)
             .finish()
     }
 }

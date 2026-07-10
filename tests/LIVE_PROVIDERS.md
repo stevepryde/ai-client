@@ -64,13 +64,17 @@ and streaming.
 
 ### Model and enum matrices
 
-These make tiny requests across representative capability families and every
-checked-in option/enum value:
+These make tiny requests across representative capability families and the
+model-specific options that OpenAI documents:
 
 ```bash
 cargo test --all-features --test live_openai live_openai_model_matrix \
   -- --ignored --test-threads=1
 cargo test --all-features --test live_openai live_openai_option_matrix \
+  -- --ignored --test-threads=1
+cargo test --all-features --test live_openai live_openai_gpt51_and_gpt54 \
+  -- --ignored --test-threads=1
+cargo test --all-features --test live_openai live_openai_gpt54_documented \
   -- --ignored --test-threads=1
 cargo test --all-features --test live_gemini live_gemini_model_matrix \
   -- --ignored --test-threads=1
@@ -79,16 +83,19 @@ cargo test --all-features --test live_gemini live_gemini_option_matrix \
 ```
 
 OpenAI's metadata test checks every active Responses-compatible GPT model. The
-paid generation matrix is intentionally limited to `gpt-5.1`, `gpt-5.2`,
-`gpt-5.4`, and `gpt-5.5`. Its option matrices cover reasoning efforts,
-prompt-cache retentions/options, include selectors, text formats, verbosity,
-service tiers, and non-invoked tool definitions. Gemini covers every text model,
-every adjustable safety threshold, and the full inexpensive generation config.
+paid streaming matrix is intentionally limited to `gpt-5.1`, `gpt-5.2`,
+`gpt-5.4`, and `gpt-5.5`. GPT-5.1 and GPT-5.4 additionally get direct live
+coverage for every documented reasoning effort, default and explicit
+no-reasoning sampling, structured output, actual function calling, image input,
+prompt-cache retention, and common request fields. GPT-5.4's documented
+non-resource tool definitions are each submitted with tool use forced off.
+Every generation request uses OpenAI's minimum 16-token output cap unless the
+feature needs a slightly larger response. Gemini covers every text model, every
+adjustable safety threshold, and the full inexpensive generation config.
 
 GPT-5.6 is currently a selected-partner preview. Its Sol, Terra, Luna, alias,
-six reasoning efforts, and persisted-reasoning contexts therefore run under the
-`live_openai_entitled` filter. Pro mode is deliberately under
-`live_openai_expensive`.
+and six reasoning efforts therefore run under the `live_openai_entitled`
+filter.
 
 ### Entitlement and resource cases
 

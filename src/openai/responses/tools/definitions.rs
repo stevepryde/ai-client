@@ -320,3 +320,30 @@ impl OpenAIResponsesTool {
         })
     }
 }
+
+macro_rules! into_responses_tool {
+    ($variant:ident: $type:ty) => {
+        impl crate::openai::responses::IntoResponsesTool for $type {
+            fn into_responses_tool(self) -> OpenAIResponsesTool {
+                OpenAIResponsesTool::$variant(self)
+            }
+        }
+    };
+}
+
+into_responses_tool!(Function: OpenAIFunctionTool);
+into_responses_tool!(FileSearch: OpenAIFileSearchTool);
+into_responses_tool!(Computer: OpenAIComputerTool);
+into_responses_tool!(ComputerUsePreview: OpenAIComputerUsePreviewTool);
+into_responses_tool!(WebSearch: OpenAIWebSearchTool);
+into_responses_tool!(Mcp: OpenAIMcpTool);
+into_responses_tool!(CodeInterpreter: OpenAICodeInterpreterTool);
+into_responses_tool!(ProgrammaticToolCalling: OpenAIProgrammaticToolCallingTool);
+into_responses_tool!(ImageGeneration: OpenAIImageGenerationTool);
+into_responses_tool!(LocalShell: OpenAILocalShellTool);
+into_responses_tool!(FunctionShell: OpenAIFunctionShellTool);
+into_responses_tool!(Custom: OpenAICustomTool);
+into_responses_tool!(Namespace: OpenAINamespaceTool);
+into_responses_tool!(ToolSearch: OpenAIToolSearchTool);
+into_responses_tool!(WebSearchPreview: OpenAIWebSearchPreviewTool);
+into_responses_tool!(ApplyPatch: OpenAIApplyPatchTool);

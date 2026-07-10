@@ -53,13 +53,16 @@ println!("status: {:?}", response_body.status);
 # }
 ```
 
-Known-model builders expose only settings supported by their model marker. Use
-`DynamicResponseRequest` with an explicit `ValidationMode` for model IDs loaded
-from configuration or released after this crate version. Both paths erase into
-the same private `PreparedResponseRequest` before transport. The older
+Known-model builders expose only settings supported by their model marker and
+track mutually exclusive reasoning/sampling modes in the builder type. Runtime
+model selection should match to a typed model marker before constructing the
+request; there is deliberately no string-model Responses builder. Custom and
+fine-tuned models can define their own `OpenAIResponsesModel` marker and opt in
+to capabilities explicitly. Requests erase into the same private
+`PreparedResponseRequest` before transport. The older
 `OpenAIClient::generate_response*` methods remain forwarding methods for
 migration; new code should use the borrowed `client.responses()` resource.
-See [`specs/migration-0.4.md`](specs/migration-0.4.md) for migration examples.
+See [`specs/migration-0.5.md`](specs/migration-0.5.md) for migration examples.
 
 Stored responses use validated opaque IDs and encoded path segments:
 

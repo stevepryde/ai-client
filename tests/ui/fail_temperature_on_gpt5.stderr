@@ -12,7 +12,7 @@ error[E0599]: the method `temperature` exists for struct `ResponseRequestBuilder
  ::: src/openai/responses/models.rs
   |
   |           pub struct $name;
-  |           ----------------- doesn't satisfy `_: SupportsSampling`
+  |           ----------------- doesn't satisfy `_: SupportsSamplingFrom<DefaultMode>`
   |
   = note: the following trait bounds were not satisfied:
-          `ai_client::openai::responses::Gpt5: SupportsSampling`
+          `ai_client::openai::responses::Gpt5: SupportsSamplingFrom<DefaultMode>`

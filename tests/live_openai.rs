@@ -33,15 +33,12 @@ fn required_env(name: &str) -> String {
     })
 }
 
-fn tiny_request(model: &str) -> PreparedResponseRequest {
-    DynamicResponseRequest::builder(DynamicOpenAIModel::new(model).unwrap())
+fn tiny_request<M: OpenAIResponsesModel>() -> PreparedResponseRequest {
+    ResponseRequest::<M>::builder()
         .input_text("Reply with only OK.")
         .max_output_tokens(16)
         .store(false)
-        .validation(ValidationMode::Strict)
-        .builtin_catalog()
         .build()
-        .unwrap_or_else(|error| panic!("live request for {model} failed local validation: {error}"))
 }
 
 #[tokio::test]
@@ -66,38 +63,49 @@ async fn live_openai_core_catalog_covers_every_supported_response_model() {
     }
 }
 
+#[cfg(feature = "stream")]
 #[tokio::test]
-#[ignore = "live provider: requires OPENAI_API_KEY and spends a few tokens per representative model family"]
-async fn live_openai_model_matrix_generates_with_representative_families() {
+#[ignore = "live provider: streams a tiny response from GPT-5.1, GPT-5.2, GPT-5.4, and GPT-5.5"]
+async fn live_openai_model_matrix_streams_with_representative_families() {
+    use futures::StreamExt;
+
     let client = client();
-    for model in REPRESENTATIVE_RESPONSE_MODEL_IDS {
-        let response = client
+    let requests = [
+        (Gpt5_1::ID, tiny_request::<Gpt5_1>()),
+        (Gpt5_2::ID, tiny_request::<Gpt5_2>()),
+        (Gpt5_4::ID, tiny_request::<Gpt5_4>()),
+        (Gpt5_5::ID, tiny_request::<Gpt5_5>()),
+    ];
+    for (model, request) in requests {
+        let events = client
             .responses()
-            .create(tiny_request(model))
+            .create_stream(request)
             .await
-            .unwrap_or_else(|error| panic!("Responses create failed for {model}: {error}"))
-            .into_inner();
-        assert!(
-            response.model == *model || response.model.starts_with(&format!("{model}-")),
-            "{model} resolved to unexpected provider model {}",
-            response.model
-        );
-        assert!(
-            matches!(
-                response.status,
-                OpenAIResponseStatus::Completed | OpenAIResponseStatus::Incomplete
-            ),
-            "{model} returned unexpected status {:?}",
-            response.status
-        );
+            .unwrap_or_else(|error| panic!("Responses create_stream failed for {model}: {error}"))
+            .into_inner()
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap_or_else(|error| panic!("Responses stream decode failed for {model}: {error}"));
+        let response = events
+            .iter()
+            .find_map(|event| match event.data() {
+                OpenAIResponsesStreamEvent::ResponseDone(done)
+                | OpenAIResponsesStreamEvent::ResponseIncomplete(done) => Some(&done.response),
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                panic!("Responses stream for {model} had no successful terminal event")
+            });
+        assert!(response.model == model || response.model.starts_with(&format!("{model}-")));
     }
 }
 
 #[tokio::test]
 #[ignore = "live provider: requires OPENAI_API_KEY and validates inexpensive create options"]
 async fn live_openai_core_create_options_are_accepted_together() {
-    let function: OpenAIResponsesTool = serde_json::from_value(serde_json::json!({
-        "type": "function",
+    let function: OpenAIFunctionTool = serde_json::from_value(serde_json::json!({
         "name": "do_nothing",
         "description": "A function that is deliberately not called.",
         "strict": false,
@@ -120,7 +128,7 @@ async fn live_openai_core_create_options_are_accepted_together() {
     }))
     .unwrap();
     let metadata = OpenAIResponseMetadata::new([("suite", "ai-client-live")]).unwrap();
-    let request = DynamicResponseRequest::builder(DynamicOpenAIModel::new("gpt-4.1").unwrap())
+    let request = ResponseRequest::<Gpt4_1>::builder()
         .input_text("Return JSON where ok is true. Do not call a tool.")
         .instructions("Follow the requested output schema exactly.")
         .metadata(metadata)
@@ -128,7 +136,6 @@ async fn live_openai_core_create_options_are_accepted_together() {
         .temperature(Temperature::new(0.0).unwrap())
         .top_p(TopP::new(0.9).unwrap())
         .max_output_tokens(64)
-        .user("ai-client-live-tests")
         .safety_identifier("ai-client-live-tests")
         .service_tier(OpenAIServiceTier::Auto)
         .prompt_cache_key("ai-client-live-core-options")
@@ -141,10 +148,7 @@ async fn live_openai_core_create_options_are_accepted_together() {
         .truncation(OpenAITruncation::Disabled)
         .include(ResponseInclude::MessageOutputTextLogprobs)
         .parallel_tool_calls(false)
-        .validation(ValidationMode::Strict)
-        .builtin_catalog()
-        .build()
-        .unwrap();
+        .build();
 
     let response = client()
         .responses()
@@ -162,79 +166,149 @@ async fn live_openai_core_create_options_are_accepted_together() {
 #[tokio::test]
 #[ignore = "live provider: requires OPENAI_API_KEY and spends one tiny call per reasoning option"]
 async fn live_openai_option_matrix_accepts_every_reasoning_effort() {
-    let cases = [
-        ("gpt-5", "minimal"),
-        ("gpt-5", "low"),
-        ("gpt-5", "medium"),
-        ("gpt-5", "high"),
-        ("gpt-5.1", "none"),
-        ("gpt-5.1", "low"),
-        ("gpt-5.1", "medium"),
-        ("gpt-5.1", "high"),
-        ("gpt-5.4-mini", "none"),
-        ("gpt-5.4-mini", "low"),
-        ("gpt-5.4-mini", "medium"),
-        ("gpt-5.4-mini", "high"),
-        ("gpt-5.4-mini", "xhigh"),
-        ("gpt-5.4-pro", "medium"),
-        ("gpt-5.4-pro", "high"),
-        ("gpt-5.4-pro", "xhigh"),
-    ];
     let client = client();
-    for (model, effort) in cases {
-        let reasoning: OpenAIResponsesReasoning = serde_json::from_value(serde_json::json!({
-            "effort": effort
-        }))
-        .unwrap();
-        let request = DynamicResponseRequest::builder(DynamicOpenAIModel::new(model).unwrap())
-            .input_text("Reply with only OK.")
-            .max_output_tokens(32)
-            .reasoning_config(reasoning)
-            .store(false)
-            .validation(ValidationMode::Strict)
-            .builtin_catalog()
-            .build()
-            .unwrap();
+    for (label, request) in [
+        (
+            "gpt-5.1/none",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning_none()
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.1/low",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(Gpt5_1ReasoningEffort::Low)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.1/medium",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(Gpt5_1ReasoningEffort::Medium)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.1/high",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(Gpt5_1ReasoningEffort::High)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4/none",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning_none()
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4/low",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(ExtendedReasoningEffort::Low)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4/medium",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(ExtendedReasoningEffort::Medium)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4/high",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(ExtendedReasoningEffort::High)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4/xhigh",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(ExtendedReasoningEffort::XHigh)
+                .store(false)
+                .build(),
+        ),
+    ] {
         client
             .responses()
             .create(request)
             .await
-            .unwrap_or_else(|error| panic!("reasoning option {model}/{effort} failed: {error}"));
+            .unwrap_or_else(|error| panic!("reasoning option {label} failed: {error}"));
     }
 }
 
 #[tokio::test]
 #[ignore = "live provider: requires OPENAI_API_KEY and validates every advertised cache retention"]
 async fn live_openai_option_matrix_accepts_prompt_cache_settings() {
-    let cases = [
-        ("gpt-4.1", "in_memory"),
-        ("gpt-4.1", "24h"),
-        ("gpt-5.1", "in_memory"),
-        ("gpt-5.1", "24h"),
-        ("gpt-5", "in_memory"),
-        ("gpt-5", "24h"),
-        ("gpt-5.4", "in_memory"),
-        ("gpt-5.4", "24h"),
-        ("gpt-5.5", "24h"),
-        ("gpt-5.5-pro", "24h"),
-    ];
     let client = client();
-    for (model, retention) in cases {
-        let request = DynamicResponseRequest::builder(DynamicOpenAIModel::new(model).unwrap())
-            .input_text("Reply with only OK.")
-            .max_output_tokens(16)
-            .prompt_cache_key(format!("ai-client-live-{model}-{retention}"))
-            .prompt_cache_retention(retention)
-            .store(false)
-            .validation(ValidationMode::Strict)
-            .builtin_catalog()
-            .build()
-            .unwrap();
+    for (label, request) in [
+        (
+            "gpt-5.1/in_memory",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .prompt_cache_key("ai-client-live-gpt-5.1-in-memory")
+                .prompt_cache_retention(PromptCacheRetention::InMemory)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.1/24h",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .prompt_cache_key("ai-client-live-gpt-5.1-24h")
+                .prompt_cache_retention(PromptCacheRetention::Hours24)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4/in_memory",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .prompt_cache_key("ai-client-live-gpt-5.4-in-memory")
+                .prompt_cache_retention(PromptCacheRetention::InMemory)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4/24h",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .prompt_cache_key("ai-client-live-gpt-5.4-24h")
+                .prompt_cache_retention(PromptCacheRetention::Hours24)
+                .store(false)
+                .build(),
+        ),
+    ] {
         client
             .responses()
             .create(request)
             .await
-            .unwrap_or_else(|error| panic!("cache option {model}/{retention} failed: {error}"));
+            .unwrap_or_else(|error| panic!("cache option {label} failed: {error}"));
     }
 }
 
@@ -479,125 +553,79 @@ async fn live_openai_entitled_gpt56_model_and_reasoning_matrix() {
         );
     }
 
-    for model in PREVIEW_RESPONSE_MODEL_IDS {
+    for (model, request) in [
+        (Gpt5_6::ID, tiny_request::<Gpt5_6>()),
+        (Gpt5_6Sol::ID, tiny_request::<Gpt5_6Sol>()),
+        (Gpt5_6Terra::ID, tiny_request::<Gpt5_6Terra>()),
+        (Gpt5_6Luna::ID, tiny_request::<Gpt5_6Luna>()),
+    ] {
         client
             .responses()
-            .create(tiny_request(model))
+            .create(request)
             .await
             .unwrap_or_else(|error| panic!("GPT-5.6 create failed for {model}: {error}"));
     }
 
-    for effort in ["none", "low", "medium", "high", "xhigh", "max"] {
-        let reasoning: OpenAIResponsesReasoning = serde_json::from_value(serde_json::json!({
-            "effort": effort
-        }))
-        .unwrap();
+    for (effort, request) in [
+        (
+            "none",
+            ResponseRequest::<Gpt5_6Luna>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning_none()
+                .store(false)
+                .build(),
+        ),
+        (
+            "low",
+            ResponseRequest::<Gpt5_6Luna>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(Gpt5_6ReasoningEffort::Low)
+                .store(false)
+                .build(),
+        ),
+        (
+            "medium",
+            ResponseRequest::<Gpt5_6Luna>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(Gpt5_6ReasoningEffort::Medium)
+                .store(false)
+                .build(),
+        ),
+        (
+            "high",
+            ResponseRequest::<Gpt5_6Luna>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(Gpt5_6ReasoningEffort::High)
+                .store(false)
+                .build(),
+        ),
+        (
+            "xhigh",
+            ResponseRequest::<Gpt5_6Luna>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(Gpt5_6ReasoningEffort::XHigh)
+                .store(false)
+                .build(),
+        ),
+        (
+            "max",
+            ResponseRequest::<Gpt5_6Luna>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning(Gpt5_6ReasoningEffort::Max)
+                .store(false)
+                .build(),
+        ),
+    ] {
         client
             .responses()
-            .create(
-                DynamicResponseRequest::builder(DynamicOpenAIModel::new("gpt-5.6-luna").unwrap())
-                    .input_text("Reply with only OK.")
-                    .max_output_tokens(32)
-                    .reasoning_config(reasoning)
-                    .store(false)
-                    .validation(ValidationMode::Strict)
-                    .builtin_catalog()
-                    .build()
-                    .unwrap(),
-            )
+            .create(request)
             .await
             .unwrap_or_else(|error| panic!("GPT-5.6 effort {effort} failed: {error}"));
     }
-
-    for context in ["auto", "current_turn", "all_turns"] {
-        let reasoning: OpenAIResponsesReasoning = serde_json::from_value(serde_json::json!({
-            "effort": "none",
-            "context": context
-        }))
-        .unwrap();
-        client
-            .responses()
-            .create(
-                DynamicResponseRequest::builder(DynamicOpenAIModel::new("gpt-5.6-luna").unwrap())
-                    .input_text("Reply with only OK.")
-                    .max_output_tokens(16)
-                    .reasoning_config(reasoning)
-                    .store(false)
-                    .validation(ValidationMode::Strict)
-                    .builtin_catalog()
-                    .build()
-                    .unwrap(),
-            )
-            .await
-            .unwrap_or_else(|error| panic!("GPT-5.6 context {context} failed: {error}"));
-    }
-
-    client
-        .responses()
-        .create(
-            DynamicResponseRequest::builder(DynamicOpenAIModel::new("gpt-5.6-luna").unwrap())
-                .input_text("Reply with only OK.")
-                .max_output_tokens(16)
-                .prompt_cache_key("ai-client-live-explicit-cache")
-                .prompt_cache_options(OpenAIPromptCacheOptions {
-                    ttl: Some(OpenAIPromptCacheTtl::Minutes30),
-                    mode: Some(OpenAIPromptCacheMode::Explicit),
-                })
-                .store(false)
-                .validation(ValidationMode::Strict)
-                .builtin_catalog()
-                .build()
-                .unwrap(),
-        )
-        .await
-        .expect("GPT-5.6 explicit prompt-cache options should be accepted");
-
-    for tool in [
-        serde_json::json!({"type": "programmatic_tool_calling"}),
-        serde_json::json!({"type": "tool_search"}),
-    ] {
-        let tag = tool["type"].as_str().unwrap().to_owned();
-        let tool: OpenAIResponsesTool = serde_json::from_value(tool).unwrap();
-        client
-            .responses()
-            .create(
-                DynamicResponseRequest::builder(DynamicOpenAIModel::new("gpt-5.6-luna").unwrap())
-                    .input_text("Reply with only OK.")
-                    .max_output_tokens(16)
-                    .tool(tool)
-                    .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
-                    .store(false)
-                    .validation(ValidationMode::Strict)
-                    .builtin_catalog()
-                    .build()
-                    .unwrap(),
-            )
-            .await
-            .unwrap_or_else(|error| panic!("GPT-5.6 tool {tag} was rejected: {error}"));
-    }
-}
-
-#[tokio::test]
-#[ignore = "EXPENSIVE live provider: requires GPT-5.6 preview entitlement and invokes pro mode"]
-async fn live_openai_expensive_gpt56_pro_mode() {
-    let reasoning: OpenAIResponsesReasoning = serde_json::from_value(serde_json::json!({
-        "mode": "pro",
-        "effort": "none"
-    }))
-    .unwrap();
-    client()
-        .responses()
-        .create(
-            DynamicResponseRequest::builder(DynamicOpenAIModel::new("gpt-5.6-luna").unwrap())
-                .input_text("Reply with only OK.")
-                .max_output_tokens(16)
-                .reasoning_config(reasoning)
-                .store(false)
-                .validation(ValidationMode::Strict)
-                .builtin_catalog()
-                .build()
-                .unwrap(),
-        )
-        .await
-        .expect("GPT-5.6 pro mode should be accepted");
 }

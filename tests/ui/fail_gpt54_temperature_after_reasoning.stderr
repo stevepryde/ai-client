@@ -1,0 +1,18 @@
+error[E0599]: the method `temperature` exists for struct `ResponseRequestBuilder<ai_client::openai::responses::Gpt5_4, ReasoningMode>`, but its trait bounds were not satisfied
+ --> tests/ui/fail_gpt54_temperature_after_reasoning.rs:8:10
+  |
+6 |       let _ = ResponseRequest::<Gpt5_4>::builder()
+  |  _____________-
+7 | |         .reasoning(ExtendedReasoningEffort::Low)
+8 | |         .temperature(Temperature::new(0.5).unwrap())
+  | |         -^^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+  | |_________|
+  |
+  |
+ ::: src/openai/responses/models.rs
+  |
+  |           pub struct $name;
+  |           ----------------- doesn't satisfy `_: SupportsSamplingFrom<ReasoningMode>`
+  |
+  = note: the following trait bounds were not satisfied:
+          `ai_client::openai::responses::Gpt5_4: SupportsSamplingFrom<ReasoningMode>`

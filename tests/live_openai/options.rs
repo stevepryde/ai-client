@@ -1,174 +1,351 @@
-use ai_client::openai::responses::*;
+use ai_client::openai::{responses::*, OpenAIJsonSchema};
 
 use super::client;
 
-fn dynamic_request(model: &str) -> DynamicResponseRequestBuilder {
-    DynamicResponseRequest::builder(DynamicOpenAIModel::new(model).unwrap())
-        .input_text("Reply with only OK.")
-        .max_output_tokens(32)
-        .store(false)
+fn noop_function() -> OpenAIFunctionTool {
+    serde_json::from_value(serde_json::json!({
+        "name": "noop",
+        "description": "Do nothing",
+        "strict": false,
+        "parameters": {"type": "object", "properties": {}, "additionalProperties": false}
+    }))
+    .unwrap()
 }
 
-#[tokio::test]
-#[ignore = "live provider: requires OPENAI_API_KEY and covers every include selector"]
-async fn live_openai_option_matrix_accepts_every_include_selector() {
-    let client = client();
-    let includes = [
-        ResponseInclude::FileSearchCallResults,
-        ResponseInclude::WebSearchCallResults,
-        ResponseInclude::WebSearchCallActionSources,
-        ResponseInclude::MessageInputImageUrl,
-        ResponseInclude::ComputerCallOutputImageUrl,
-        ResponseInclude::CodeInterpreterCallOutputs,
-        ResponseInclude::ReasoningEncryptedContent,
-        ResponseInclude::MessageOutputTextLogprobs,
-    ];
-    for include in includes {
-        let model = if include == ResponseInclude::ReasoningEncryptedContent {
-            "gpt-5.4-mini"
-        } else {
-            "gpt-4.1"
-        };
-        let mut builder = dynamic_request(model).include(include);
-        if include == ResponseInclude::MessageOutputTextLogprobs {
-            builder = builder.top_logprobs(TopLogprobs::new(1).unwrap());
-        }
-        client
-            .responses()
-            .create(builder.build().unwrap())
-            .await
-            .unwrap_or_else(|error| panic!("include selector {include:?} failed: {error}"));
+fn schema() -> OpenAIJsonSchema {
+    OpenAIJsonSchema {
+        name: "live_result".into(),
+        description: "A tiny live-test result.".into(),
+        schema: serde_json::json!({
+            "type": "object",
+            "properties": {"ok": {"type": "boolean"}},
+            "required": ["ok"],
+            "additionalProperties": false
+        }),
+        strict: Some(true),
     }
 }
 
 #[tokio::test]
-#[ignore = "live provider: requires OPENAI_API_KEY and covers text format/verbosity enums"]
-async fn live_openai_option_matrix_accepts_text_configuration() {
+#[ignore = "live provider: tiny GPT-5.1/GPT-5.4 calls verify sampling is accepted only in no-reasoning typestates"]
+async fn live_openai_gpt51_and_gpt54_sampling_in_no_reasoning_modes() {
     let client = client();
-    let formats = [
-        (serde_json::json!({"type": "text"}), "Reply with only OK."),
+    let requests = [
         (
-            serde_json::json!({"type": "json_object"}),
-            "Return a JSON object with ok set to true.",
+            "gpt-5.1/default-none",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .temperature(Temperature::new(0.0).unwrap())
+                .top_p(TopP::new(0.9).unwrap())
+                .top_logprobs(TopLogprobs::new(1).unwrap())
+                .store(false)
+                .build(),
         ),
         (
-            serde_json::json!({
-                "type": "json_schema",
-                "name": "live_result",
-                "strict": true,
-                "schema": {
-                    "type": "object",
-                    "properties": {"ok": {"type": "boolean"}},
-                    "required": ["ok"],
-                    "additionalProperties": false
-                }
-            }),
-            "Return JSON where ok is true.",
+            "gpt-5.1/explicit-none",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning_none()
+                .temperature(Temperature::new(0.0).unwrap())
+                .top_p(TopP::new(0.9).unwrap())
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4/default-none",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .temperature(Temperature::new(0.0).unwrap())
+                .top_p(TopP::new(0.9).unwrap())
+                .top_logprobs(TopLogprobs::new(1).unwrap())
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4/explicit-none",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning_none()
+                .temperature(Temperature::new(0.0).unwrap())
+                .top_p(TopP::new(0.9).unwrap())
+                .store(false)
+                .build(),
         ),
     ];
-    for (format, prompt) in formats {
-        let format: OpenAIResponsesTextFormat = serde_json::from_value(format).unwrap();
+    for (label, request) in requests {
         client
             .responses()
-            .create(
-                dynamic_request("gpt-4.1")
-                    .input_text(prompt)
-                    .max_output_tokens(64)
-                    .text_format(format)
-                    .build()
-                    .unwrap(),
-            )
+            .create(request)
             .await
-            .expect("text format should be accepted");
-    }
-
-    for verbosity in [
-        OpenAIResponseVerbosity::Low,
-        OpenAIResponseVerbosity::Medium,
-        OpenAIResponseVerbosity::High,
-    ] {
-        let text: OpenAIResponsesTextConfig = serde_json::from_value(serde_json::json!({
-            "verbosity": verbosity
-        }))
-        .unwrap();
-        client
-            .responses()
-            .create(
-                dynamic_request("gpt-5.4-mini")
-                    .text_config(text)
-                    .build()
-                    .unwrap(),
-            )
-            .await
-            .unwrap_or_else(|error| panic!("text verbosity {verbosity:?} failed: {error}"));
+            .unwrap_or_else(|error| panic!("sampling combination {label} failed: {error}"));
     }
 }
 
 #[tokio::test]
-#[ignore = "live provider: requires OPENAI_API_KEY; tools are declared but forced off, so hosted tools are not billed"]
-async fn live_openai_tool_definition_matrix_is_accepted_without_invocation() {
-    let client = client();
-    let mut rejected = Vec::new();
-    let tools = [
-        serde_json::json!({
-            "type": "function", "name": "noop", "description": "Do nothing",
-            "strict": false,
-            "parameters": {"type": "object", "properties": {}}
-        }),
-        serde_json::json!({"type": "computer"}),
-        serde_json::json!({
-            "type": "web_search"
-        }),
-        serde_json::json!({"type": "web_search_2025_08_26"}),
-        serde_json::json!({"type": "code_interpreter", "container": {"type": "auto"}}),
-        serde_json::json!({"type": "image_generation"}),
-        serde_json::json!({"type": "shell"}),
-        serde_json::json!({
-            "type": "custom", "name": "custom_noop", "description": "Do nothing"
-        }),
-        serde_json::json!({
-            "type": "namespace", "name": "test_namespace", "description": "Live test",
-            "tools": [{
-                "type": "function", "name": "nested_noop", "strict": false,
-                "parameters": {"type": "object", "properties": {}}
-            }]
-        }),
-        serde_json::json!({"type": "web_search_preview"}),
-        serde_json::json!({"type": "web_search_preview_2025_03_11"}),
-        serde_json::json!({"type": "apply_patch"}),
+#[ignore = "live provider: tiny GPT-5.1/GPT-5.4 calls cover documented structured output, function calling, and common request fields"]
+async fn live_openai_gpt51_and_gpt54_documented_core_features() {
+    let metadata = OpenAIResponseMetadata::new([("suite", "ai-client-live")]).unwrap();
+    let requests = [
+        (
+            "gpt-5.1",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_text("Return JSON with ok=true. Do not call a tool.")
+                .instructions("Follow the schema exactly.")
+                .metadata(metadata.clone())
+                .max_output_tokens(32)
+                .safety_identifier("ai-client-live-tests")
+                .service_tier(OpenAIServiceTier::Auto)
+                .prompt_cache_key("ai-client-live-gpt-5.1-core")
+                .json_schema(schema())
+                .tool(noop_function())
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
+                .store(false)
+                .background(false)
+                .max_tool_calls(1)
+                .truncation(OpenAITruncation::Disabled)
+                .parallel_tool_calls(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("Return JSON with ok=true. Do not call a tool.")
+                .instructions("Follow the schema exactly.")
+                .metadata(metadata)
+                .max_output_tokens(32)
+                .safety_identifier("ai-client-live-tests")
+                .service_tier(OpenAIServiceTier::Auto)
+                .prompt_cache_key("ai-client-live-gpt-5.4-core")
+                .json_schema(schema())
+                .tool(noop_function())
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
+                .store(false)
+                .background(false)
+                .max_tool_calls(1)
+                .truncation(OpenAITruncation::Disabled)
+                .parallel_tool_calls(false)
+                .build(),
+        ),
     ];
-
-    for tool in tools {
-        let tag = tool["type"].as_str().unwrap().to_string();
-        let tool: OpenAIResponsesTool = serde_json::from_value(tool)
-            .unwrap_or_else(|error| panic!("tool definition {tag} is not constructible: {error}"));
-        if let Err(error) = client
+    let client = client();
+    for (model, request) in requests {
+        client
             .responses()
-            .create(
-                dynamic_request("gpt-5.4")
-                    .tool(tool)
-                    .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
-                    .build()
-                    .unwrap(),
-            )
+            .create(request)
             .await
-        {
-            rejected.push(format!("{tag}: {error}"));
-        }
+            .unwrap_or_else(|error| panic!("documented core features failed for {model}: {error}"));
     }
-    assert!(
-        rejected.is_empty(),
-        "tool definitions were rejected:\n{}",
-        rejected.join("\n")
-    );
 }
 
 #[tokio::test]
-#[ignore = "live provider: requires OPENAI_API_KEY and provisioned OPENAI_VECTOR_STORE_ID"]
+#[ignore = "live provider: tiny GPT-5.1/GPT-5.4 calls require one local function call"]
+async fn live_openai_gpt51_and_gpt54_function_calling() {
+    let requests = [
+        (
+            "gpt-5.1",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_text("Call noop now.")
+                .max_output_tokens(32)
+                .tool(noop_function())
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::Required))
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("Call noop now.")
+                .max_output_tokens(32)
+                .tool(noop_function())
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::Required))
+                .store(false)
+                .build(),
+        ),
+    ];
+    let client = client();
+    for (model, request) in requests {
+        let response = client
+            .responses()
+            .create(request)
+            .await
+            .unwrap_or_else(|error| panic!("function calling failed for {model}: {error}"))
+            .into_inner();
+        assert!(
+            response
+                .output
+                .iter()
+                .any(|item| matches!(item, OpenAIResponseOutputItem::FunctionCall(_))),
+            "{model} did not produce the required function call"
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore = "live provider: tiny GPT-5.1/GPT-5.4 calls verify documented image input"]
+async fn live_openai_gpt51_and_gpt54_image_input() {
+    const TINY_PNG: &str = "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAJklEQVR4nO3NMQ0AAAwDoPo33arYsQQMkB6LQCAQCAQCgUAg+BIMi1X0pjxKe0gAAAAASUVORK5CYII=";
+    let item: OpenAIResponseInputItem = serde_json::from_value(serde_json::json!({
+        "type": "message",
+        "role": "user",
+        "content": [
+            {"type": "input_text", "text": "Reply only OK."},
+            {
+                "type": "input_image",
+                "detail": "low",
+                "image_url": format!("data:image/png;base64,{TINY_PNG}")
+            }
+        ]
+    }))
+    .unwrap();
+    let requests = [
+        (
+            "gpt-5.1",
+            ResponseRequest::<Gpt5_1>::builder()
+                .input_items(vec![item.clone()])
+                .max_output_tokens(16)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.4",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_items(vec![item])
+                .max_output_tokens(16)
+                .store(false)
+                .build(),
+        ),
+    ];
+    let client = client();
+    for (model, request) in requests {
+        client
+            .responses()
+            .create(request)
+            .await
+            .unwrap_or_else(|error| panic!("documented image input failed for {model}: {error}"));
+    }
+}
+
+#[tokio::test]
+#[ignore = "live provider: GPT-5.4 documented tool definitions are declared but forced off, so hosted tools are not billed"]
+async fn live_openai_gpt54_documented_tool_definitions() {
+    let computer: OpenAIComputerTool = serde_json::from_value(serde_json::json!({})).unwrap();
+    let web: OpenAIWebSearchTool = serde_json::from_value(serde_json::json!({})).unwrap();
+    let code: OpenAICodeInterpreterTool =
+        serde_json::from_value(serde_json::json!({"container": {"type": "auto"}})).unwrap();
+    let shell: OpenAIFunctionShellTool = serde_json::from_value(serde_json::json!({})).unwrap();
+    let search: OpenAIToolSearchTool = serde_json::from_value(serde_json::json!({})).unwrap();
+    let patch: OpenAIApplyPatchTool = serde_json::from_value(serde_json::json!({})).unwrap();
+
+    let deferred_function: OpenAIFunctionTool = serde_json::from_value(serde_json::json!({
+        "name": "deferred_noop",
+        "description": "Do nothing",
+        "strict": false,
+        "parameters": {"type": "object", "properties": {}},
+        "defer_loading": true
+    }))
+    .unwrap();
+    let requests = [
+        (
+            "function",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .tool(noop_function())
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
+                .store(false)
+                .build(),
+        ),
+        (
+            "computer",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .tool(computer)
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
+                .store(false)
+                .build(),
+        ),
+        (
+            "web_search",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .tool(web)
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
+                .store(false)
+                .build(),
+        ),
+        (
+            "code_interpreter",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .tool(code)
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
+                .store(false)
+                .build(),
+        ),
+        (
+            "image_generation",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .tool(OpenAIImageGenerationTool::default())
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
+                .store(false)
+                .build(),
+        ),
+        (
+            "shell",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .tool(shell)
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
+                .store(false)
+                .build(),
+        ),
+        (
+            "apply_patch",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .tool(patch)
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
+                .store(false)
+                .build(),
+        ),
+        (
+            "tool_search",
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .tool(deferred_function)
+                .tool(search)
+                .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
+                .store(false)
+                .build(),
+        ),
+    ];
+    let client = client();
+    for (name, request) in requests {
+        client
+            .responses()
+            .create(request)
+            .await
+            .unwrap_or_else(|error| panic!("GPT-5.4 tool {name} was rejected: {error:?}"));
+    }
+}
+
+#[tokio::test]
+#[ignore = "live provider: requires OPENAI_VECTOR_STORE_ID and verifies GPT-5.4 file search declaration"]
 async fn live_openai_resource_tool_file_search() {
     let vector_store_id = super::required_env("OPENAI_VECTOR_STORE_ID");
-    let tool: OpenAIResponsesTool = serde_json::from_value(serde_json::json!({
-        "type": "file_search",
+    let tool: OpenAIFileSearchTool = serde_json::from_value(serde_json::json!({
         "vector_store_ids": [vector_store_id],
         "max_num_results": 1
     }))
@@ -176,22 +353,23 @@ async fn live_openai_resource_tool_file_search() {
     client()
         .responses()
         .create(
-            dynamic_request("gpt-5.4")
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
                 .tool(tool)
                 .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
-                .build()
-                .unwrap(),
+                .store(false)
+                .build(),
         )
         .await
-        .expect("provisioned file-search tool should be accepted");
+        .expect("provisioned GPT-5.4 file-search tool should be accepted");
 }
 
 #[tokio::test]
-#[ignore = "live provider: requires OPENAI_API_KEY and OPENAI_MCP_SERVER_URL"]
+#[ignore = "live provider: requires OPENAI_MCP_SERVER_URL and verifies GPT-5.4 MCP declaration"]
 async fn live_openai_resource_tool_mcp() {
     let server_url = super::required_env("OPENAI_MCP_SERVER_URL");
-    let tool: OpenAIResponsesTool = serde_json::from_value(serde_json::json!({
-        "type": "mcp",
+    let tool: OpenAIMcpTool = serde_json::from_value(serde_json::json!({
         "server_label": "ai_client_live",
         "server_url": server_url,
         "require_approval": "never"
@@ -200,51 +378,55 @@ async fn live_openai_resource_tool_mcp() {
     client()
         .responses()
         .create(
-            dynamic_request("gpt-5.4")
+            ResponseRequest::<Gpt5_4>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
                 .tool(tool)
                 .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::None))
-                .build()
-                .unwrap(),
+                .store(false)
+                .build(),
         )
         .await
-        .expect("configured MCP tool should be accepted");
+        .expect("configured GPT-5.4 MCP tool should be accepted");
 }
 
 #[tokio::test]
-#[ignore = "EXPENSIVE live provider: invokes web search, code interpreter, and image generation"]
+#[ignore = "EXPENSIVE live provider: invokes GPT-5.4 web search, code interpreter, and image generation"]
 async fn live_openai_expensive_hosted_tool_matrix() {
-    let cases = [
-        (
-            "web_search",
-            serde_json::json!({"type": "web_search"}),
-            "Use web search to find the OpenAI homepage title.",
-        ),
-        (
-            "code_interpreter",
-            serde_json::json!({"type": "code_interpreter", "container": {"type": "auto"}}),
-            "Use code interpreter to calculate 2+2.",
-        ),
-        (
-            "image_generation",
-            serde_json::json!({"type": "image_generation", "size": "1024x1024", "quality": "low"}),
-            "Generate a simple blue circle on white.",
-        ),
-    ];
     let client = client();
-    for (name, tool, prompt) in cases {
-        let tool: OpenAIResponsesTool = serde_json::from_value(tool).unwrap();
-        let request = DynamicResponseRequest::builder(DynamicOpenAIModel::new("gpt-5.4").unwrap())
-            .input_text(prompt)
-            .max_output_tokens(256)
-            .tool(tool)
+    let cases = [
+        ResponseRequest::<Gpt5_4>::builder()
+            .input_text("Use web search to find the OpenAI homepage title.")
+            .max_output_tokens(64)
+            .tool(serde_json::from_value::<OpenAIWebSearchTool>(serde_json::json!({})).unwrap())
             .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::Required))
             .store(false)
-            .build()
-            .unwrap();
+            .build(),
+        ResponseRequest::<Gpt5_4>::builder()
+            .input_text("Use code interpreter to calculate 2+2.")
+            .max_output_tokens(64)
+            .tool(
+                serde_json::from_value::<OpenAICodeInterpreterTool>(
+                    serde_json::json!({"container": {"type": "auto"}}),
+                )
+                .unwrap(),
+            )
+            .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::Required))
+            .store(false)
+            .build(),
+        ResponseRequest::<Gpt5_4>::builder()
+            .input_text("Generate a simple blue circle on white.")
+            .max_output_tokens(64)
+            .tool(OpenAIImageGenerationTool::default())
+            .tool_choice(OpenAIToolChoice::Mode(OpenAIToolChoiceMode::Required))
+            .store(false)
+            .build(),
+    ];
+    for request in cases {
         client
             .responses()
             .create(request)
             .await
-            .unwrap_or_else(|error| panic!("hosted tool {name} failed: {error}"));
+            .expect("GPT-5.4 hosted tool invocation should succeed");
     }
 }
