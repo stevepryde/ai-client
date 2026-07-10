@@ -16,8 +16,9 @@ use crate::{
         AiError, AiProvider, AiResponse, AiResult, BodySnippet, ConfigErrorKind, ProviderApiError,
     },
     openai::{
-        create_response::{OpenAIResponsesCreateRequest, OpenAIResponsesCreateResponse},
+        create_response::OpenAIResponsesCreateResponse,
         list_models::{OpenAIModelInfo, OpenAIModelsListResponse},
+        responses::PreparedResponseRequest,
     },
 };
 #[cfg(feature = "stream")]
@@ -264,10 +265,9 @@ impl OpenAIClient {
     /// request/rate-limit metadata.
     pub async fn generate_response(
         &self,
-        mut request: OpenAIResponsesCreateRequest,
+        mut request: PreparedResponseRequest,
     ) -> AiResult<AiResponse<OpenAIResponsesCreateResponse>> {
-        request.sanitise();
-        request.stream = None;
+        request.wire_mut().stream = None;
         self.transport
             .post_json(
                 "responses.create",
@@ -284,10 +284,9 @@ impl OpenAIClient {
     /// Streaming support requires the `stream` crate feature.
     pub async fn generate_response_streamed(
         &self,
-        mut request: OpenAIResponsesCreateRequest,
+        mut request: PreparedResponseRequest,
     ) -> AiResult<AiResponse<AiStream<SseJsonEvent<OpenAIResponsesStreamEvent>>>> {
-        request.sanitise();
-        request.stream = Some(true);
+        request.wire_mut().stream = Some(true);
         let response = self
             .transport
             .post_json_stream(
@@ -313,6 +312,16 @@ mod tests {
     use crate::core::test_support::{
         cross_origin_redirect_server, delayed_server, json_response, one_shot_server,
     };
+    use crate::openai::{
+        create_response::OpenAIResponsesInput,
+        responses::{Gpt4oMini, ResponseRequest},
+    };
+
+    fn responses_request() -> PreparedResponseRequest {
+        ResponseRequest::<Gpt4oMini>::builder()
+            .input(OpenAIResponsesInput::Text("hello".into()))
+            .build()
+    }
 
     #[test]
     fn builder_debug_redacts_credentials_and_headers() {
@@ -542,15 +551,7 @@ mod tests {
             .base_url(base_url)
             .build()
             .unwrap()
-            .generate_response_streamed(
-                OpenAIResponsesCreateRequest::builder()
-                    .model(OpenAIModel::Gpt4oMini)
-                    .input(crate::openai::create_response::OpenAIResponsesInput::Text(
-                        "hello".into(),
-                    ))
-                    .stream(false)
-                    .build(),
-            )
+            .generate_response_streamed(responses_request())
             .await
             .unwrap();
         assert_eq!(
@@ -582,14 +583,7 @@ mod tests {
             .base_url(base_url)
             .build()
             .unwrap()
-            .generate_response_streamed(
-                OpenAIResponsesCreateRequest::builder()
-                    .model(OpenAIModel::Gpt4oMini)
-                    .input(crate::openai::create_response::OpenAIResponsesInput::Text(
-                        "hello".into(),
-                    ))
-                    .build(),
-            )
+            .generate_response_streamed(responses_request())
             .await;
         request.await.unwrap();
         let error = match result {
@@ -622,14 +616,7 @@ mod tests {
             .base_url(base_url)
             .build()
             .unwrap()
-            .generate_response_streamed(
-                OpenAIResponsesCreateRequest::builder()
-                    .model(OpenAIModel::Gpt4oMini)
-                    .input(crate::openai::create_response::OpenAIResponsesInput::Text(
-                        "hello".into(),
-                    ))
-                    .build(),
-            )
+            .generate_response_streamed(responses_request())
             .await;
         request.await.unwrap();
         let error = match result {
@@ -662,15 +649,7 @@ mod tests {
             .base_url(base_url)
             .build()
             .unwrap()
-            .generate_response(
-                OpenAIResponsesCreateRequest::builder()
-                    .model(OpenAIModel::Gpt4oMini)
-                    .input(crate::openai::create_response::OpenAIResponsesInput::Text(
-                        "hello".into(),
-                    ))
-                    .stream(true)
-                    .build(),
-            )
+            .generate_response(responses_request())
             .await
             .unwrap();
         let request = request.await.unwrap();

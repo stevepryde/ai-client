@@ -39,6 +39,7 @@ pub enum OpenAIModel {
     Gpt5_5Pro,
 }
 
+#[cfg(feature = "chat-completions")]
 impl OpenAIModel {
     pub(crate) fn allow_temperature(&self) -> bool {
         match self {

@@ -1,83 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::openai::{
-    sanitise_request_params, OpenAIJsonSchema, OpenAIModel, OpenAIReasoningEffort,
-};
+use crate::openai::{OpenAIJsonSchema, OpenAIReasoningEffort};
 
 // ============================================================================
 // OpenAI Response Generation Types
 // ============================================================================
-
-/// POST /v1/responses
-#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
-pub struct OpenAIResponsesCreateRequest {
-    pub model: OpenAIModel,
-
-    /// Text, image, or file inputs. Can be a string or an array of items.
-    pub input: OpenAIResponsesInput,
-
-    /// System/developer message inserted into the model context.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub instructions: Option<String>,
-
-    /// Upper bound for generated tokens (includes reasoning tokens).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_output_tokens: Option<u64>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f64>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub top_p: Option<f64>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stream: Option<bool>,
-
-    /// For better cache hit rates (replaces legacy `user`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_cache_key: Option<String>,
-
-    /// Set to "24h" to keep cached prefixes around longer.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt_cache_retention: Option<String>,
-
-    /// Structured outputs etc. are configured here.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub text: Option<OpenAIResponsesTextConfig>,
-
-    /// If you want multi-turn without resending all context, you can use this.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub previous_response_id: Option<String>,
-
-    /// Stored by default; you can disable.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub store: Option<bool>,
-
-    /// Reasoning config is an object in Responses.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<OpenAIResponsesReasoning>,
-
-    /// Tools available to the model (e.g., image generation).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tools: Option<Vec<OpenAIResponsesTool>>,
-}
-
-impl OpenAIResponsesCreateRequest {
-    pub(crate) fn sanitise(&mut self) {
-        let mut effort = self.reasoning.as_ref().and_then(|r| r.effort.clone());
-        sanitise_request_params(
-            &self.model,
-            &mut self.temperature,
-            &mut effort,
-            &mut self.prompt_cache_key,
-            &mut self.prompt_cache_retention,
-        );
-        if let Some(reasoning) = self.reasoning.as_mut() {
-            reasoning.effort = effort;
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]

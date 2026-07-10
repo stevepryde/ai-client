@@ -26,17 +26,15 @@ calls return `AiResponse<T>`, which keeps the provider body and HTTP metadata
 together:
 
 ```no_run
-use ai_client::openai::{OpenAIClient, OpenAIModel};
-use ai_client::openai::create_response::{
-    OpenAIResponsesCreateRequest, OpenAIResponsesInput,
-};
+use ai_client::openai::OpenAIClient;
+use ai_client::openai::create_response::OpenAIResponsesInput;
+use ai_client::openai::responses::{Gpt5Mini, ResponseRequest};
 
 # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 let client = OpenAIClient::builder()
     .api_key(std::env::var("OPENAI_API_KEY")?)
     .build()?;
-let request = OpenAIResponsesCreateRequest::builder()
-    .model(OpenAIModel::Gpt5Mini)
+let request = ResponseRequest::<Gpt5Mini>::builder()
     .input(OpenAIResponsesInput::Text("Explain typed builders briefly.".into()))
     .build();
 
@@ -49,6 +47,12 @@ println!("status: {:?}", response_body.status);
 # Ok(())
 # }
 ```
+
+Known-model builders expose only settings supported by their model marker. Use
+`DynamicResponseRequest` with an explicit `ValidationMode` for model IDs loaded
+from configuration or released after this crate version. Both paths erase into
+the same private `PreparedResponseRequest` before transport.
+See [`specs/migration-0.4.md`](specs/migration-0.4.md) for migration examples.
 
 ### Streaming Support
 

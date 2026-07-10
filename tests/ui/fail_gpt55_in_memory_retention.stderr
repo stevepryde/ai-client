@@ -1,0 +1,13 @@
+error[E0308]: mismatched types
+ --> tests/ui/fail_gpt55_in_memory_retention.rs:9:33
+  |
+9 |         .prompt_cache_retention(PromptCacheRetention::InMemory)
+  |          ---------------------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Gpt5_5PromptCacheRetention`, found `PromptCacheRetention`
+  |          |
+  |          arguments to this method are incorrect
+  |
+note: method defined here
+ --> src/openai/responses/request.rs
+  |
+  |     pub fn prompt_cache_retention(mut self, retention: M::Retention) -> Self {
+  |            ^^^^^^^^^^^^^^^^^^^^^^

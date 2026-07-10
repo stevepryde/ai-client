@@ -1,0 +1,13 @@
+error[E0308]: mismatched types
+ --> tests/ui/fail_wrong_reasoning_effort.rs:9:20
+  |
+9 |         .reasoning(ExtendedReasoningEffort::None)
+  |          --------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `ProReasoningEffort`, found `ExtendedReasoningEffort`
+  |          |
+  |          arguments to this method are incorrect
+  |
+note: method defined here
+ --> src/openai/responses/request.rs
+  |
+  |     pub fn reasoning(mut self, effort: M::Effort) -> Self {
+  |            ^^^^^^^^^

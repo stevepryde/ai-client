@@ -25,7 +25,7 @@ Stack contract: [`stack.md`](stack.md)
 | --- | --- | --- | --- |
 | F1 — safe shared JSON transport | accepted | Private client state, same-origin relative paths, shared non-streaming transport, typed errors/metadata, TLS wiring, encoded query/path data | **test-only**: 34 unit/integration tests, one doctest, full feature matrix, TLS/stream dependency-tree checks, and independent review; no live-provider smoke |
 | F2 — streaming transport | accepted | Crate-owned SSE and internal byte streams, handshake errors/metadata, wire stream invariants, adversarial framing and JSON-array tests | **test-only**: 42 unit/integration tests, one doctest, full stream feature matrix/dependency-tree checks, and independent review; no live-provider smoke |
-| F3 — typed model requests | pending | Known-model markers, resource-scoped capabilities, typestate builders, non-generic wire erasure, explicit dynamic requests | Compile-pass/fail fixtures plus serialization tests |
+| F3 — typed model requests | accepted | OpenAI Responses known-model markers, resource-scoped capabilities, input-typestate builders, non-generic wire erasure, and explicit dynamic requests | **test-only**: 49 unit/integration tests, four compile-pass and ten compile-fail fixtures, one doctest, full feature matrix, and independent review; no live-provider smoke |
 | F4 — compatibility separation | pending | Native Chat Completions deprecation and typed `openai_compatible` dialect framework | Per-dialect conformance fixtures and migration examples |
 | F5 — Responses refactor and parity | pending | Focused resource modules, operation parity, raw unknown variants, Conversations | Coverage matrix and official fixtures |
 
@@ -50,6 +50,19 @@ Stack contract: [`stack.md`](stack.md)
 - The shared SSE decoder owns framing only. It must handle LF and CRLF, comments, multiple `data` lines, `event`, `id`, `retry`, blank events, `[DONE]`, final buffered data, arbitrary byte chunk boundaries, and split UTF-8.
 - A private raw-byte adapter underpins SSE and JSON-array streams. Public binary/collected media responses, multipart, retries, reconnects, WebSockets, and Realtime remain deferred until an image, file, or audio endpoint proves those contracts.
 - F2 does not change model types, introduce capability builders, deprecate Chat Completions, add compatibility dialects, or expand Responses item/tool coverage.
+
+### F3 architecture contract
+
+- F3 owns native OpenAI Responses request construction end to end. `OpenAIModel` remains for model retrieval and legacy Chat Completions, but Responses moves to resource-scoped marker types implementing the unsealed `OpenAIResponsesModel` trait.
+- The initial checked-in marker manifest covers every model ID already supported by this crate. Capability implementations cover the temperature/sampling, reasoning-effort, prompt-caching, structured-output, and image-tool settings only where current official evidence supports them; legacy sanitizer matches are not treated as evidence.
+- Reasoning uses associated effort types so standard, extended/xhigh, and pro model families expose only their accepted values. Sampling and prompt-cache methods exist only behind their exact capability bounds.
+- Conditional combinations that would cause combinatorial typestate are conservatively unavailable on the known-model builder until a reviewed model-specific bundled method is justified. The explicit dynamic path preserves full request fidelity without silently deleting or coercing fields.
+- `ResponseRequestBuilder<M, MissingInput>` uses typestate only for required input. `build()` exists only for `HasInput` and erases immediately into `PreparedResponseRequest`, which owns one private, non-generic wire request. Both streamed and non-streamed client paths accept the same prepared type and continue to own the wire stream switch.
+- `PreparedResponseRequest` keeps prompts and wire fields private, redacts `Debug`, and exposes dynamic validation warnings without exposing the wire request or stream switch.
+- `DynamicOpenAIModel` validates model-ID syntax. `DynamicResponseRequestBuilder` reuses the private wire request, never coerces/deletes settings, and supports `ValidationMode::{Off, Warn, Strict}` against a versioned `ResponseModelCapabilitiesCatalog` boundary. `Warn` stores warnings on the prepared request; `Strict` returns a build error for a missing catalog, unknown model, or unsupported configured setting.
+- The crate provides a checked-in static catalog and no network refresh mechanism. Callers may provide their own catalog and may define local model markers/capability implementations for native OpenAI fine-tuned models and aliases. Compatibility gateways remain owned by F4's separate dialect family.
+- Direct public construction of the old Responses wire request and its invariant-bypassing generated builder is removed in this planned `0.4.0` breaking slice rather than retained as a duplicate API.
+- F3 compile-checks only the stable settings it owns. Input modality safety and complete structured-output/tool capability modeling remain deferred to the F5 input/tool union refactor; F4 compatibility dialects reuse the pattern but do not inherit native OpenAI guarantees.
 
 ## Goal
 
@@ -519,15 +532,15 @@ The module layout above is intentionally compatible with that later split.
 
 ### Identifiers and models
 
-- [ ] Replace closed provider model enums with typed known-model markers plus an explicit dynamic model/request path.
-- [ ] Make native request/config types generic over their provider and, where useful, their model marker.
-- [ ] Add resource-scoped capability traits and capability-bounded builder methods for known models.
-- [ ] Use associated setting types for capabilities whose valid values differ by model.
-- [ ] Accept arbitrary aliases, snapshots, fine-tuned model IDs, and OpenAI-compatible gateway model names through the dynamic path or downstream-defined model markers.
+- [x] Replace closed Responses model selection with typed known-model markers plus an explicit dynamic model/request path. `OpenAIModel` remains intentionally scoped to model retrieval and legacy Chat Completions.
+- [x] Make native Responses request construction generic over its model marker, then erase it into one private non-generic wire request before transport.
+- [x] Add resource-scoped capability traits and capability-bounded builder methods for known models.
+- [x] Use associated setting types for capabilities whose valid values differ by model.
+- [x] Accept arbitrary aliases, snapshots, and fine-tuned model IDs through the dynamic path or downstream-defined native model markers. OpenAI-compatible gateway names remain owned by F4's separate dialect family.
 - [ ] Add resource ID newtypes where mixing IDs would be dangerous (`ResponseId`, `ConversationId`, `FileId`, `VectorStoreId`).
-- [ ] Do not rewrite a request based on a capability table. Typed requests fail to compile; dynamic requests return structured warnings/errors.
-- [ ] Make dynamic validation explicit through `ValidationMode::{Off, Warn, Strict}`.
-- [ ] Treat the dynamic capability catalog as advisory and versionable. Unknown models must remain usable when validation is not strict.
+- [x] Do not rewrite a request based on a capability table. Typed requests fail to compile; dynamic requests return structured warnings/errors.
+- [x] Make dynamic validation explicit through `ValidationMode::{Off, Warn, Strict}`.
+- [x] Treat the dynamic capability catalog as advisory and versionable. Unknown models remain usable when validation is not strict.
 
 ### Request and response compatibility
 
@@ -536,7 +549,7 @@ The module layout above is intentionally compatible with that later split.
 - [ ] Preserve the complete raw object for unknown tagged response items and stream events.
 - [ ] Use `#[non_exhaustive]` on public enums and structs that are expected to grow.
 - [ ] Prefer builders for large requests and typed constructors for required invariants.
-- [ ] Keep wire-only switches private. In particular, remove public responsibility for `stream`; `create_stream` must set it correctly.
+- [x] Keep wire-only switches private. In particular, remove public responsibility for `stream`; streamed and non-streamed client operations set it correctly.
 - [ ] Offer `extra_body`, `extra_query`, and `extra_headers` request options as a deliberate forward-compatibility escape hatch. Reject collisions with typed fields.
 - [ ] Provide response helpers such as `output_text()`, `function_calls()`, `images()`, and `request_id()` without hiding the complete typed response.
 
@@ -585,7 +598,7 @@ The official documented OpenAPI file currently contains roughly 178 path entries
 - [x] Replace query string concatenation with encoded query serialization.
 - [x] Replace the SSE parser and add adversarial chunk-boundary tests.
 - [x] Make streaming and non-streaming entry points own their wire mode automatically.
-- [ ] Introduce typed known-model markers, capability-bounded builders, and an explicit dynamic model/validation path.
+- [x] Introduce typed known-model markers, capability-bounded builders, and an explicit dynamic model/validation path.
 - [ ] Split Responses types into focused modules before expanding their unions.
 - [x] Add mock HTTP tests for success, provider errors, malformed bodies, non-JSON bodies, timeouts, rate limits, and stream handshake errors for the existing provider operations.
 
@@ -754,9 +767,9 @@ Exact defaults can remain backward-compatible for `0.4.0`, but the invariants ar
 - [ ] Add provider fixture directories for official examples and captured, redacted edge cases.
 - [ ] Add mock-server integration tests that assert method, path, query, headers, JSON/multipart bodies, status handling, and response metadata.
 - [ ] Add SSE fuzz/property tests over arbitrary byte chunk boundaries and line endings.
-- [ ] Add compile-fail or builder tests for illegal request combinations where practical.
-- [ ] Use `trybuild` compile-fail fixtures to prove that provider-specific options cannot cross providers and unsupported known-model settings are unavailable.
-- [ ] Add compile-pass fixtures for downstream-defined custom model markers and capability implementations.
+- [x] Add compile-fail or builder tests for illegal request combinations where practical.
+- [x] Use `trybuild` compile-fail fixtures to prove that provider-specific options cannot cross providers and unsupported known-model settings are unavailable.
+- [x] Add compile-pass fixtures for downstream-defined custom model markers and capability implementations.
 - [ ] Run `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --all-features`, doctests, and a feature matrix in CI.
 - [ ] Add `cargo-semver-checks` or `cargo-public-api` reporting before releases.
 - [ ] Keep live provider tests opt-in, credential-gated, low-cost, and separate from deterministic CI.

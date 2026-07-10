@@ -1,0 +1,18 @@
+error[E0599]: the method `temperature` exists for struct `ResponseRequestBuilder<ai_client::openai::responses::Gpt5, HasInput>`, but its trait bounds were not satisfied
+ --> tests/ui/fail_temperature_on_gpt5.rs:9:10
+  |
+7 |       let _ = ResponseRequest::<Gpt5>::builder()
+  |  _____________-
+8 | |         .input(OpenAIResponsesInput::Text("hello".into()))
+9 | |         .temperature(Temperature::new(0.5).unwrap())
+  | |         -^^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+  | |_________|
+  |
+  |
+ ::: src/openai/responses/models.rs
+  |
+  |           pub struct $name;
+  |           ----------------- doesn't satisfy `_: SupportsSampling`
+  |
+  = note: the following trait bounds were not satisfied:
+          `ai_client::openai::responses::Gpt5: SupportsSampling`

@@ -1,0 +1,18 @@
+error[E0599]: the method `reasoning` exists for struct `ResponseRequestBuilder<ai_client::openai::responses::Gpt4o, HasInput>`, but its trait bounds were not satisfied
+ --> tests/ui/fail_reasoning_on_gpt4o.rs:9:10
+  |
+7 |       let _ = ResponseRequest::<Gpt4o>::builder()
+  |  _____________-
+8 | |         .input(OpenAIResponsesInput::Text("hello".into()))
+9 | |         .reasoning(Gpt5ReasoningEffort::High)
+  | |         -^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+  | |_________|
+  |
+  |
+ ::: src/openai/responses/models.rs
+  |
+  |           pub struct $name;
+  |           ----------------- doesn't satisfy `_: SupportsReasoning`
+  |
+  = note: the following trait bounds were not satisfied:
+          `ai_client::openai::responses::Gpt4o: SupportsReasoning`
