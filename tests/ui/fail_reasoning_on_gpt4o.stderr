@@ -15,4 +15,4 @@ error[E0599]: the method `reasoning` exists for struct `ResponseRequestBuilder<a
   |           ----------------- doesn't satisfy `_: SupportsReasoning`
   |
   = note: the following trait bounds were not satisfied:
-          `ai_client::openai::responses::Gpt4o: SupportsReasoning`
+          `ai_client::openai::responses::Gpt4o: ai_client::openai::responses::SupportsReasoning`

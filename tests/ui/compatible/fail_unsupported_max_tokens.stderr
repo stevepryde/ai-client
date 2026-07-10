@@ -1,0 +1,16 @@
+error[E0599]: the method `max_completion_tokens` exists for struct `ChatRequestBuilder<CustomDialect, Model, MissingMessages>`, but its trait bounds were not satisfied
+ --> tests/ui/compatible/fail_unsupported_max_tokens.rs:9:60
+  |
+3 | struct Model;
+  | ------------ doesn't satisfy `Model: SupportsMaxCompletionTokens<CustomDialect>`
+...
+9 |     let _ = ChatRequest::<CustomDialect, Model>::builder().max_completion_tokens(100);
+  |                                                            ^^^^^^^^^^^^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+  |
+  = note: the following trait bounds were not satisfied:
+          `Model: SupportsMaxCompletionTokens<CustomDialect>`
+note: the trait `SupportsMaxCompletionTokens` must be implemented
+ --> src/openai_compatible/chat/capability.rs
+  |
+  | pub trait SupportsMaxCompletionTokens<D: ChatCompletionsDialect>: CompatibleChatModel<D> {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

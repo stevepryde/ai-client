@@ -15,4 +15,4 @@ error[E0599]: the method `json_schema` exists for struct `ResponseRequestBuilder
    |           ----------------- doesn't satisfy `_: SupportsStructuredOutput`
    |
    = note: the following trait bounds were not satisfied:
-           `ai_client::openai::responses::Gpt5_4Pro: SupportsStructuredOutput`
+           `ai_client::openai::responses::Gpt5_4Pro: ai_client::openai::responses::SupportsStructuredOutput`

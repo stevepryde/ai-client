@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "chat-completions")]
+#[deprecated(
+    since = "0.4.0",
+    note = "Native OpenAI Chat Completions is a legacy migration surface; use openai::responses for OpenAI or openai_compatible for compatibility endpoints."
+)]
 pub mod create_chat_completion;
 pub mod create_response;
 pub mod list_models;

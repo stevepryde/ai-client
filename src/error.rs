@@ -9,6 +9,7 @@ pub type AiResult<T> = std::result::Result<T, AiError>;
 pub enum AiProvider {
     OpenAI,
     Gemini,
+    OpenAICompatible(&'static str),
 }
 
 impl fmt::Display for AiProvider {
@@ -16,6 +17,7 @@ impl fmt::Display for AiProvider {
         match self {
             Self::OpenAI => f.write_str("OpenAI"),
             Self::Gemini => f.write_str("Gemini"),
+            Self::OpenAICompatible(dialect) => write!(f, "OpenAI-compatible {dialect}"),
         }
     }
 }

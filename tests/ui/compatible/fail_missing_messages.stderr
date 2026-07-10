@@ -1,0 +1,7 @@
+error[E0599]: no method named `build` found for struct `ChatRequestBuilder<CustomDialect, Model, MissingMessages>` in the current scope
+ --> tests/ui/compatible/fail_missing_messages.rs:9:60
+  |
+9 |     let _ = ChatRequest::<CustomDialect, Model>::builder().build();
+  |                                                            ^^^^^ method not found in `ChatRequestBuilder<CustomDialect, Model, MissingMessages>`
+  |
+  = note: the method was found for `ChatRequestBuilder<D, M, HasMessages>`

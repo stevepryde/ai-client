@@ -1,0 +1,20 @@
+error[E0599]: the method `response_format` exists for struct `ChatRequestBuilder<CustomDialect, Model, MissingMessages>`, but its trait bounds were not satisfied
+  --> tests/ui/compatible/fail_unsupported_structured.rs:13:10
+   |
+ 6 |   struct Model;
+   |   ------------ doesn't satisfy `_: SupportsStructuredOutput<CustomDialect>`
+...
+12 |       let _ = ChatRequest::<CustomDialect, Model>::builder()
+   |  _____________-
+13 | |         .response_format(ChatResponseFormat::new(serde_json::Map::new()));
+   | |         -^^^^^^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+   | |_________|
+   |
+   |
+   = note: the following trait bounds were not satisfied:
+           `Model: ai_client::openai_compatible::chat::SupportsStructuredOutput<CustomDialect>`
+note: the trait `ai_client::openai_compatible::chat::SupportsStructuredOutput` must be implemented
+  --> src/openai_compatible/chat/capability.rs
+   |
+   | pub trait SupportsStructuredOutput<D: ChatCompletionsDialect>: CompatibleChatModel<D> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

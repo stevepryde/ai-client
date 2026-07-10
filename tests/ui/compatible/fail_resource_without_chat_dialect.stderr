@@ -1,0 +1,16 @@
+error[E0599]: the method `chat` exists for struct `OpenAICompatibleClient<NoChatDialect>`, but its trait bounds were not satisfied
+  --> tests/ui/compatible/fail_resource_without_chat_dialect.rs:14:20
+   |
+ 3 | struct NoChatDialect;
+   | -------------------- doesn't satisfy `NoChatDialect: ChatCompletionsDialect`
+...
+14 |     let _ = client.chat();
+   |                    ^^^^ method cannot be called on `OpenAICompatibleClient<NoChatDialect>` due to unsatisfied trait bounds
+   |
+   = note: the following trait bounds were not satisfied:
+           `NoChatDialect: ChatCompletionsDialect`
+note: the trait `ChatCompletionsDialect` must be implemented
+  --> src/openai_compatible/dialect.rs
+   |
+   | pub trait ChatCompletionsDialect: OpenAICompatibleDialect {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

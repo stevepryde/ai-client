@@ -3,6 +3,8 @@
 pub mod error;
 pub mod gemini;
 pub mod openai;
+#[cfg(feature = "openai-compatible")]
+pub mod openai_compatible;
 #[cfg(feature = "stream")]
 pub mod stream;
 

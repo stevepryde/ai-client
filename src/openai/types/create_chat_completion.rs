@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use serde::{Deserialize, Serialize};
 
 use crate::openai::{
@@ -14,6 +16,10 @@ pub enum OpenAIResponseFormat {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[deprecated(
+    since = "0.4.0",
+    note = "Use OpenAI Responses or openai_compatible::chat::ChatResponse."
+)]
 pub struct OpenAIGenerateContentResponse {
     pub choices: Vec<OpenAIResponseChoice>,
     pub created: u64,
@@ -63,6 +69,10 @@ pub struct OpenAIResponseUsage {
 /// Streaming response chunk from OpenAI API.
 /// This is the response format when stream=true is set in the request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[deprecated(
+    since = "0.4.0",
+    note = "Use openai_compatible::chat::ChatStreamEvent for compatibility endpoints."
+)]
 pub struct OpenAIStreamChunk {
     pub id: String,
     pub object: String,
@@ -88,6 +98,10 @@ pub struct OpenAIDelta {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
+#[deprecated(
+    since = "0.4.0",
+    note = "Use OpenAI Responses or openai_compatible::chat request builders."
+)]
 pub struct OpenAIGenerateContentRequest {
     /// Model ID used to generate the response, like gpt-4o or o3.
     /// OpenAI offers a wide range of models with different capabilities, performance

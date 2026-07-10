@@ -1,0 +1,20 @@
+error[E0599]: the method `modalities` exists for struct `ChatRequestBuilder<CustomDialect, Model, MissingMessages>`, but its trait bounds were not satisfied
+  --> tests/ui/compatible/fail_unsupported_modalities.rs:13:10
+   |
+ 6 |   struct Model;
+   |   ------------ doesn't satisfy `Model: SupportsModalities<CustomDialect>`
+...
+12 |       let _ = ChatRequest::<CustomDialect, Model>::builder()
+   |  _____________-
+13 | |         .modalities(vec![ChatModality::new("text").unwrap()]);
+   | |         -^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+   | |_________|
+   |
+   |
+   = note: the following trait bounds were not satisfied:
+           `Model: SupportsModalities<CustomDialect>`
+note: the trait `SupportsModalities` must be implemented
+  --> src/openai_compatible/chat/capability.rs
+   |
+   | pub trait SupportsModalities<D: ChatCompletionsDialect>: CompatibleChatModel<D> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

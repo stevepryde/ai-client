@@ -1,0 +1,20 @@
+error[E0599]: the method `frequency_penalty` exists for struct `ChatRequestBuilder<CustomDialect, Model, MissingMessages>`, but its trait bounds were not satisfied
+  --> tests/ui/compatible/fail_unsupported_frequency.rs:13:10
+   |
+ 6 |   struct Model;
+   |   ------------ doesn't satisfy `Model: SupportsFrequencyPenalty<CustomDialect>`
+...
+12 |       let _ = ChatRequest::<CustomDialect, Model>::builder()
+   |  _____________-
+13 | |         .frequency_penalty(ChatFrequencyPenalty::try_from(0.5).unwrap());
+   | |         -^^^^^^^^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+   | |_________|
+   |
+   |
+   = note: the following trait bounds were not satisfied:
+           `Model: SupportsFrequencyPenalty<CustomDialect>`
+note: the trait `SupportsFrequencyPenalty` must be implemented
+  --> src/openai_compatible/chat/capability.rs
+   |
+   | pub trait SupportsFrequencyPenalty<D: ChatCompletionsDialect>: CompatibleChatModel<D> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

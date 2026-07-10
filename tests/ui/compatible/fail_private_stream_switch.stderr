@@ -1,0 +1,10 @@
+error[E0624]: method `set_stream` is private
+  --> tests/ui/compatible/fail_private_stream_switch.rs:13:13
+   |
+13 |     request.set_stream(true);
+   |             ^^^^^^^^^^ private method
+   |
+  ::: src/openai_compatible/chat/request.rs
+   |
+   |     pub(crate) fn set_stream(&mut self, stream: bool) {
+   |     ------------------------------------------------- private method defined here

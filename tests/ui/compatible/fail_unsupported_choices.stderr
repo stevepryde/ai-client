@@ -1,0 +1,20 @@
+error[E0599]: the method `choice_count` exists for struct `ChatRequestBuilder<CustomDialect, Model, MissingMessages>`, but its trait bounds were not satisfied
+  --> tests/ui/compatible/fail_unsupported_choices.rs:15:10
+   |
+ 8 |   struct Model;
+   |   ------------ doesn't satisfy `Model: SupportsChoiceCount<CustomDialect>`
+...
+14 |       let _ = ChatRequest::<CustomDialect, Model>::builder()
+   |  _____________-
+15 | |         .choice_count(NonZeroU32::new(2).unwrap());
+   | |         -^^^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+   | |_________|
+   |
+   |
+   = note: the following trait bounds were not satisfied:
+           `Model: SupportsChoiceCount<CustomDialect>`
+note: the trait `SupportsChoiceCount` must be implemented
+  --> src/openai_compatible/chat/capability.rs
+   |
+   | pub trait SupportsChoiceCount<D: ChatCompletionsDialect>: CompatibleChatModel<D> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

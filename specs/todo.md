@@ -26,7 +26,7 @@ Stack contract: [`stack.md`](stack.md)
 | F1 — safe shared JSON transport | accepted | Private client state, same-origin relative paths, shared non-streaming transport, typed errors/metadata, TLS wiring, encoded query/path data | **test-only**: 34 unit/integration tests, one doctest, full feature matrix, TLS/stream dependency-tree checks, and independent review; no live-provider smoke |
 | F2 — streaming transport | accepted | Crate-owned SSE and internal byte streams, handshake errors/metadata, wire stream invariants, adversarial framing and JSON-array tests | **test-only**: 42 unit/integration tests, one doctest, full stream feature matrix/dependency-tree checks, and independent review; no live-provider smoke |
 | F3 — typed model requests | accepted | OpenAI Responses known-model markers, resource-scoped capabilities, input-typestate builders, non-generic wire erasure, and explicit dynamic requests | **test-only**: 49 unit/integration tests, four compile-pass and ten compile-fail fixtures, one doctest, full feature matrix, and independent review; no live-provider smoke |
-| F4 — compatibility separation | pending | Native Chat Completions deprecation and typed `openai_compatible` dialect framework | Per-dialect conformance fixtures and migration examples |
+| F4 — compatibility separation | accepted | Native Chat Completions deprecation and typed `openai_compatible` dialect framework | **test-only**: 58 unit/integration tests, four compatibility compile-pass and twelve compile-fail fixtures, doctests, full feature matrix, and independent review; no live-provider smoke |
 | F5 — Responses refactor and parity | pending | Focused resource modules, operation parity, raw unknown variants, Conversations | Coverage matrix and official fixtures |
 
 ### F1 architecture contract
@@ -63,6 +63,17 @@ Stack contract: [`stack.md`](stack.md)
 - The crate provides a checked-in static catalog and no network refresh mechanism. Callers may provide their own catalog and may define local model markers/capability implementations for native OpenAI fine-tuned models and aliases. Compatibility gateways remain owned by F4's separate dialect family.
 - Direct public construction of the old Responses wire request and its invariant-bypassing generated builder is removed in this planned `0.4.0` breaking slice rather than retained as a duplicate API.
 - F3 compile-checks only the stable settings it owns. Input modality safety and complete structured-output/tool capability modeling remain deferred to the F5 input/tool union refactor; F4 compatibility dialects reuse the pattern but do not inherit native OpenAI guarantees.
+
+### F4 architecture contract
+
+- F4a separates Chat-Completions-shaped interoperability from native OpenAI. It introduces `openai_compatible` with public dialect/resource traits, a dialect-typed client, typed model markers and capability-bounded builders, and one explicit `CustomDialect` configuration path. No named non-OpenAI provider is claimed until official conformance evidence is pinned.
+- Native OpenAI Chat Completions remains default-off behind `chat-completions`, but its module, request/response/event types, and client entrypoints are deprecated for the 0.4 migration window. OpenAI callers are directed to native Responses; compatibility callers are directed to `openai_compatible`.
+- `OpenAICompatibleClient<D>` owns the shared safe transport. `ChatCompletionsDialect` gates `chat()`, and prepared requests remain dialect-bound so a request cannot cross clients. Typed builders erase model generics into one private non-generic wire request before transport.
+- `CustomDialect` requires an explicit validated base URL and safe crate-owned auth strategy. Its dynamic model/request path validates structural safety only: model capabilities are explicitly unvalidated, and advanced fields are sent as configured without coercion.
+- Chat builders require messages through typestate. Each dialect owns an associated serializable message type that erases to private JSON objects; `CustomDialect` provides both a text convenience constructor and an explicit raw-object message escape hatch. Capability-specific methods exist only for the exact dialect/model bounds. Dialect-specific options are associated types, not fields for every future provider.
+- `extra_body` is collision-checked against typed wire fields; collisions are build errors and no typed value is silently replaced or discarded.
+- Non-streaming and streaming compatibility calls use `AiResponse` handshake metadata, structured provider errors, crate-owned stream errors, automatic wire stream mode, and raw-preserving response/SSE wrappers.
+- F4a includes mock conformance and compile-pass/fail fixtures for `CustomDialect`. Named dialect markers, Responses-shaped compatibility, Images/Audio compatibility, and portable cross-provider requests remain deferred.
 
 ## Goal
 
@@ -622,7 +633,7 @@ Complete the OpenAI Responses resource before adding another text-generation abs
 - [ ] Parse every documented Responses stream event; preserve unknown events raw.
 - [ ] Add accumulation helpers that reconstruct a final response from a stream without requiring callers to write an event state machine.
 - [ ] Add Conversations CRUD and item CRUD/listing as the durable state companion to Responses.
-- [ ] Deprecate the native OpenAI Chat Completions module and methods, keep them default-off for migration, and ensure their internals are not the public compatibility abstraction.
+- [x] Deprecate the native OpenAI Chat Completions module and methods, keep them default-off for migration, and ensure their internals are not the public compatibility abstraction.
 
 Exit criteria:
 
@@ -632,17 +643,17 @@ Exit criteria:
 
 ### P1b — OpenAI-compatible dialect framework
 
-- [ ] Add `OpenAICompatibleClient<D>` over the shared transport with private same-origin auth handling.
-- [ ] Add resource-scoped dialect traits, starting with `ChatCompletionsDialect` and `ResponsesDialect`; add Images/Audio/Video/Batches traits only with real adapters.
-- [ ] Reuse the typed model-marker and capability-bounded builder design for `CompatibleChatRequestBuilder<D, M, State>`.
-- [ ] Erase typed builders into private non-generic compatibility wire requests before transport.
-- [ ] Add `CustomDialect` plus dynamic models as the explicit minimally-assumed escape hatch.
+- [x] Add `OpenAICompatibleClient<D>` over the shared transport with private same-origin auth handling.
+- [x] Add the resource-scoped `ChatCompletionsDialect`; defer `ResponsesDialect` and Images/Audio/Video/Batches traits until real adapters exist.
+- [x] Reuse the typed model-marker and capability-bounded builder design for `ChatRequestBuilder<D, M, State>`.
+- [x] Erase typed builders into private non-generic compatibility wire requests before transport.
+- [x] Add `CustomDialect` plus dynamic models as the explicit minimally-assumed escape hatch.
 - [ ] Implement initial known dialect markers from official provider documentation, prioritizing Gemini compatibility (already represented natively in the crate), Groq, OpenRouter, Mistral, and Anthropic compatibility.
-- [ ] Keep provider extensions typed and namespaced; do not place all providers' optional fields into the common request.
-- [ ] Build a per-dialect conformance matrix covering endpoints, auth, request fields, response differences, stream termination, errors, ignored parameters, and provider extensions.
-- [ ] Add compile-fail tests showing that unsupported resources and model/provider settings are unavailable.
-- [ ] Add mock-server fixtures for every claimed dialect and opt-in live smoke tests for adapters with available credentials.
-- [ ] Deprecate the old native OpenAI Chat Completions entry points and publish migration examples for both Responses and compatible-provider callers.
+- [x] Keep provider extensions typed and namespaced; do not place all providers' optional fields into the common request.
+- [x] Build conformance coverage for the only claimed dialect, `CustomDialect`, including endpoint/auth/wire/response/stream/error behavior.
+- [x] Add compile-fail tests showing that unsupported resources and model/provider settings are unavailable.
+- [x] Add mock-server fixtures for the only claimed dialect; live smoke tests remain deferred until a named adapter is claimed.
+- [x] Deprecate the old native OpenAI Chat Completions entry points and publish migration examples for both Responses and compatible-provider callers.
 
 Exit criteria:
 

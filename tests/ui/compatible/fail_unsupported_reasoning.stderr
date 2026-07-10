@@ -1,0 +1,16 @@
+error[E0599]: the method `reasoning_effort` exists for struct `ChatRequestBuilder<CustomDialect, Model, MissingMessages>`, but its trait bounds were not satisfied
+  --> tests/ui/compatible/fail_unsupported_reasoning.rs:12:60
+   |
+ 6 | struct Model;
+   | ------------ doesn't satisfy `_: SupportsReasoning<CustomDialect>`
+...
+12 |     let _ = ChatRequest::<CustomDialect, Model>::builder().reasoning_effort("high");
+   |                                                            ^^^^^^^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+   |
+   = note: the following trait bounds were not satisfied:
+           `Model: ai_client::openai_compatible::chat::SupportsReasoning<CustomDialect>`
+note: the trait `ai_client::openai_compatible::chat::SupportsReasoning` must be implemented
+  --> src/openai_compatible/chat/capability.rs
+   |
+   | pub trait SupportsReasoning<D: ChatCompletionsDialect>: CompatibleChatModel<D> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

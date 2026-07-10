@@ -1,0 +1,15 @@
+error[E0308]: mismatched types
+  --> tests/ui/compatible/fail_cross_dialect_request.rs:32:34
+   |
+32 |     let _ = client.chat().create(request);
+   |                           ------ ^^^^^^^ expected `PreparedChatRequest<OtherDialect>`, found `PreparedChatRequest<CustomDialect>`
+   |                           |
+   |                           arguments to this method are incorrect
+   |
+   = note: expected struct `PreparedChatRequest<OtherDialect>`
+              found struct `PreparedChatRequest<CustomDialect>`
+note: method defined here
+  --> src/openai_compatible/chat/mod.rs
+   |
+   |     pub async fn create(
+   |                  ^^^^^^

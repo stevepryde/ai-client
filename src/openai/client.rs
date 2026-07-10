@@ -3,8 +3,10 @@ use std::{fmt::Debug, time::Duration};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
 
 #[cfg(all(feature = "chat-completions", feature = "stream"))]
+#[allow(deprecated)]
 use crate::openai::create_chat_completion::OpenAIStreamChunk;
 #[cfg(feature = "chat-completions")]
+#[allow(deprecated)]
 use crate::openai::create_chat_completion::{
     OpenAIGenerateContentRequest, OpenAIGenerateContentResponse,
 };
@@ -213,6 +215,11 @@ impl OpenAIClient {
     }
 
     #[cfg(feature = "chat-completions")]
+    #[deprecated(
+        since = "0.4.0",
+        note = "Use OpenAI Responses for OpenAI or OpenAICompatibleClient::chat for compatibility endpoints."
+    )]
+    #[allow(deprecated)]
     /// Create a legacy Chat Completions response.
     ///
     /// New OpenAI integrations should use [`Self::generate_response`]. This
@@ -234,6 +241,11 @@ impl OpenAIClient {
     }
 
     #[cfg(all(feature = "chat-completions", feature = "stream"))]
+    #[deprecated(
+        since = "0.4.0",
+        note = "Use OpenAI Responses streaming for OpenAI or OpenAICompatibleClient::chat for compatibility endpoints."
+    )]
+    #[allow(deprecated)]
     /// Stream a legacy Chat Completions response.
     ///
     /// New OpenAI integrations should use [`Self::generate_response_streamed`].
@@ -659,6 +671,7 @@ mod tests {
     }
 
     #[cfg(all(feature = "chat-completions", feature = "stream"))]
+    #[allow(deprecated)]
     #[tokio::test]
     async fn chat_stream_and_nonstream_own_wire_mode() {
         use futures::StreamExt;

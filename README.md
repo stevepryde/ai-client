@@ -17,7 +17,12 @@ It also needs a catchy name.
   - Response generation via the Responses API
   - Model listing
   - Streaming responses (with `stream` feature)
-  - Legacy chat completions (with `chat-completions` feature)
+  - Deprecated legacy chat completions (with `chat-completions` feature)
+
+- **OpenAI-compatible APIs**: A separate typed Chat Completions family
+  - Explicit custom endpoint and authentication configuration
+  - Provider/dialect and model capability bounds
+  - Streaming responses (with both `openai-compatible` and `stream`)
 
 ## OpenAI Responses
 
@@ -78,12 +83,51 @@ alongside typed provider data. Read `response.metadata()` before calling
 ### Legacy OpenAI Chat Completions
 
 OpenAI recommends the Responses API for new work, so chat completions are disabled by
-default. Enable them only when a downstream app intentionally needs the legacy API:
+default and deprecated since 0.4.0. Enable them only while migrating a downstream
+app that intentionally needs the native legacy API:
 
 ```toml
 [dependencies]
 ai_client = { version = "0.1", features = ["chat-completions"] }
 ```
+
+For OpenAI-shaped third-party endpoints, use the separate
+`openai-compatible` feature instead. `CustomDialect` does not claim that an
+endpoint implements any particular option: callers provide model markers and
+capability implementations for the contract they have verified.
+
+## OpenAI-compatible Chat Completions
+
+The compatibility family preserves a Chat-Completions-shaped protocol without
+making it part of native OpenAI. Base URL and authentication are always
+explicit, and the prepared request remains bound to its dialect:
+
+```rust,ignore
+use ai_client::openai_compatible::{
+    chat::{ChatMessage, ChatRole, DynamicChatModel, DynamicChatRequest},
+    CompatibleAuth, CustomDialect, OpenAICompatibleClient,
+};
+
+let client = OpenAICompatibleClient::<CustomDialect>::builder()
+    .base_url("http://localhost:8080/v1")
+    .auth(CompatibleAuth::bearer(std::env::var("COMPATIBLE_API_KEY")?))
+    .build()?;
+let model = DynamicChatModel::new("my-runtime-model")?;
+let request = DynamicChatRequest::<CustomDialect>::builder(model)
+    .messages(vec![ChatMessage::new(ChatRole::User, "Hello")])
+    .build()?;
+let response = client.chat().create(request).await?;
+println!("{}", response.data().id());
+```
+
+The dynamic builder validates only structural safety and intentionally makes no
+model-capability guarantees. For compile-time checking, define a
+`CompatibleChatModel<CustomDialect>` marker and implement only the relevant
+capability traits. `extra_body` is an explicit forward-compatibility escape
+hatch; collisions with typed or dialect option fields are rejected. Simple
+messages use `ChatMessage::new`; multimodal, tool, and endpoint-specific
+messages use the explicit object-preserving `ChatMessage::from_object` path.
+Downstream dialects can instead define their own associated message type.
 
 ## High level plans (if it ever gets there)
 

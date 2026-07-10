@@ -1,0 +1,20 @@
+error[E0599]: the method `temperature` exists for struct `ChatRequestBuilder<CustomDialect, Model, MissingMessages>`, but its trait bounds were not satisfied
+  --> tests/ui/compatible/fail_unsupported_sampling.rs:13:10
+   |
+ 6 |   struct Model;
+   |   ------------ doesn't satisfy `Model: SupportsChatSampling<CustomDialect>`
+...
+12 |       let _ = ChatRequest::<CustomDialect, Model>::builder()
+   |  _____________-
+13 | |         .temperature(ChatTemperature::try_from(0.5).unwrap());
+   | |         -^^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+   | |_________|
+   |
+   |
+   = note: the following trait bounds were not satisfied:
+           `Model: SupportsChatSampling<CustomDialect>`
+note: the trait `SupportsChatSampling` must be implemented
+  --> src/openai_compatible/chat/capability.rs
+   |
+   | pub trait SupportsChatSampling<D: ChatCompletionsDialect>: CompatibleChatModel<D> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
