@@ -24,7 +24,7 @@ Stack contract: [`stack.md`](stack.md)
 | Unit | Status | Scope | Evidence required |
 | --- | --- | --- | --- |
 | F1 — safe shared JSON transport | accepted | Private client state, same-origin relative paths, shared non-streaming transport, typed errors/metadata, TLS wiring, encoded query/path data | **test-only**: 34 unit/integration tests, one doctest, full feature matrix, TLS/stream dependency-tree checks, and independent review; no live-provider smoke |
-| F2 — streaming transport | pending | Crate-owned SSE/byte streams, handshake errors, wire stream invariants, adversarial framing tests | Chunk-boundary fixtures and stream handshake tests |
+| F2 — streaming transport | accepted | Crate-owned SSE and internal byte streams, handshake errors/metadata, wire stream invariants, adversarial framing and JSON-array tests | **test-only**: 42 unit/integration tests, one doctest, full stream feature matrix/dependency-tree checks, and independent review; no live-provider smoke |
 | F3 — typed model requests | pending | Known-model markers, resource-scoped capabilities, typestate builders, non-generic wire erasure, explicit dynamic requests | Compile-pass/fail fixtures plus serialization tests |
 | F4 — compatibility separation | pending | Native Chat Completions deprecation and typed `openai_compatible` dialect framework | Per-dialect conformance fixtures and migration examples |
 | F5 — Responses refactor and parity | pending | Focused resource modules, operation parity, raw unknown variants, Conversations | Coverage matrix and official fixtures |
@@ -39,6 +39,17 @@ Stack contract: [`stack.md`](stack.md)
 - F1 does not accept an externally supplied reqwest client: its redirect policy cannot be inspected or overridden, so a client configured to follow cross-origin redirects could forward provider-specific credentials such as Gemini's `x-goog-api-key`. Revisit injection behind a transport seam that can preserve the same-origin invariant.
 - `--no-default-features` enables no TLS backend; native-only and rustls-only builds remain distinct. Enabling both is supported if reqwest supports the combination.
 - Retries, SSE/byte streams, multipart, resource handles, model markers, compatibility dialects, and portable provider traits are deferred to their own units.
+
+### F2 architecture contract
+
+- `AiStream<T>` is the crate-owned public stream container. Streaming methods return `AiResponse<AiStream<T>>`, so the existing response wrapper owns handshake metadata while the stream implements `futures::Stream` and yields crate-owned `AiStreamError` values instead of reqwest or reqwest-streams errors.
+- `SseJsonEvent<T>` preserves SSE `event`, `id`, and `retry` fields plus the complete raw JSON value alongside typed provider data. Numeric SSE `retry` values are milliseconds and map to `Duration::from_millis` without implying reconnect behavior. An unknown tagged provider variant therefore remains fully inspectable through the raw value.
+- OpenAI Responses and legacy Chat Completions streaming return `AiResponse<AiStream<SseJsonEvent<T>>>`; Gemini's JSON-array stream returns `AiResponse<AiStream<T>>` through the same public error boundary.
+- Stream handshakes use the same provider error decoder and response metadata model as non-streaming calls. A non-success HTTP response must return `AiError::Api` before any stream is exposed.
+- OpenAI streaming methods overwrite the wire `stream` switch with `true`; non-streaming methods overwrite it with `None`/`false`. Callers cannot select the wrong wire mode through request data.
+- The shared SSE decoder owns framing only. It must handle LF and CRLF, comments, multiple `data` lines, `event`, `id`, `retry`, blank events, `[DONE]`, final buffered data, arbitrary byte chunk boundaries, and split UTF-8.
+- A private raw-byte adapter underpins SSE and JSON-array streams. Public binary/collected media responses, multipart, retries, reconnects, WebSockets, and Realtime remain deferred until an image, file, or audio endpoint proves those contracts.
+- F2 does not change model types, introduce capability builders, deprecate Chat Completions, add compatibility dialects, or expand Responses item/tool coverage.
 
 ## Goal
 
@@ -553,11 +564,11 @@ The module layout above is intentionally compatible with that later split.
 
 ### Streaming and binary transports
 
-- [ ] Replace the custom OpenAI parser with a standards-correct, provider-neutral SSE decoder or a well-maintained decoder behind the crate's own error/event API.
-- [ ] Handle `\n` and `\r\n`, comments, multiple `data:` lines, `event`, `id`, `retry`, blank events, `[DONE]`, final buffered data, arbitrary byte chunk boundaries, and split UTF-8.
-- [ ] Check HTTP status and decode the normal API error envelope before returning any stream.
-- [ ] Preserve unknown event names and JSON payloads.
-- [ ] Return crate-owned stream and stream-error types so implementation dependencies can change without a breaking release.
+- [x] Replace the custom OpenAI parser with a standards-correct, provider-neutral SSE decoder behind the crate's own error/event API.
+- [x] Handle `\n` and `\r\n`, comments, multiple `data:` lines, `event`, `id`, `retry`, blank events, `[DONE]`, final buffered data, arbitrary byte chunk boundaries, and split UTF-8.
+- [x] Check HTTP status and decode the normal API error envelope before returning any stream.
+- [x] Preserve unknown event names and JSON payloads.
+- [x] Return crate-owned stream and stream-error types so implementation dependencies can change without a breaking release.
 - [ ] Add generic byte-stream and collected-bytes responses for speech, images, files, and video.
 - [ ] Add multipart request support before standalone images, uploads, transcription, or voice resources.
 - [ ] Keep WebSocket/WebRTC concerns out of the SSE abstraction.
@@ -572,11 +583,11 @@ The official documented OpenAPI file currently contains roughly 178 path entries
 - [x] Lock credentials and raw transport behind private fields and same-origin paths.
 - [x] Fix TLS feature wiring so `rustls-tls` and `native-tls` map to reqwest correctly and `--no-default-features` enables neither.
 - [x] Replace query string concatenation with encoded query serialization.
-- [ ] Replace the SSE parser and add adversarial chunk-boundary tests.
-- [ ] Make streaming entry points set their wire mode automatically.
+- [x] Replace the SSE parser and add adversarial chunk-boundary tests.
+- [x] Make streaming and non-streaming entry points own their wire mode automatically.
 - [ ] Introduce typed known-model markers, capability-bounded builders, and an explicit dynamic model/validation path.
 - [ ] Split Responses types into focused modules before expanding their unions.
-- [ ] Add mock HTTP tests for success, provider errors, malformed bodies, non-JSON bodies, timeouts, rate limits, and stream handshake errors.
+- [x] Add mock HTTP tests for success, provider errors, malformed bodies, non-JSON bodies, timeouts, rate limits, and stream handshake errors for the existing provider operations.
 
 Exit criteria:
 

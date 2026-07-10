@@ -64,7 +64,12 @@ Streaming is available via:
 - `OpenAIClient::generate_response_streamed()` for OpenAI Responses
 - `OpenAIClient::generate_content_streamed()` for legacy OpenAI chat completions when both `stream` and `chat-completions` are enabled
 
-Both methods return a `Stream` of response chunks that can be processed incrementally.
+Streaming methods return `AiResponse<AiStream<_>>`. The outer response exposes
+request and rate-limit metadata from the successful HTTP handshake; its inner
+`AiStream` yields crate-owned `AiStreamError` values. OpenAI SSE items are
+`SseJsonEvent<T>`, preserving event metadata and the complete raw JSON value
+alongside typed provider data. Read `response.metadata()` before calling
+`response.into_inner()` to obtain and poll the stream.
 
 ### Legacy OpenAI Chat Completions
 

@@ -16,7 +16,7 @@ default = ["rustls-tls"]
 chat-completions = []
 native-tls = ["reqwest/native-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
-stream = ["dep:reqwest-streams", "dep:futures", "reqwest/stream"]
+stream = ["dep:futures", "reqwest/stream"]
 
 [dependencies]
 base64 = "0.22"
@@ -28,9 +28,7 @@ serde_with = "3"
 strum = { version = "0.27", features = ["derive"] }
 thiserror = "2"
 
-# stream feature
 futures = { version = "0.3", optional = true }
-reqwest-streams = { version = "0.10", features = ["json"], optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time"] }

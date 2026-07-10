@@ -1,10 +1,6 @@
 use std::{fmt::Debug, time::Duration};
 
-#[cfg(feature = "stream")]
-use futures::Stream;
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
-#[cfg(feature = "stream")]
-use reqwest_streams::error::StreamBodyError;
 
 use crate::{
     core::http::{HttpTransport, HttpTransportConfig},
@@ -13,6 +9,8 @@ use crate::{
     },
     utils::IntoQuery,
 };
+#[cfg(feature = "stream")]
+use crate::{core::json_array, stream::AiStream};
 
 use super::{
     CountTokensRequest, CountTokensResponse, GeminiModel, GenerateContentRequest,
@@ -216,9 +214,7 @@ impl GeminiClient {
         &self,
         model: GeminiModel,
         request: GenerateContentRequest,
-    ) -> AiResult<impl Stream<Item = Result<GenerateContentResponse, StreamBodyError>>> {
-        use reqwest_streams::JsonStreamResponse;
-
+    ) -> AiResult<AiResponse<AiStream<GenerateContentResponse>>> {
         let model_action = format!("{model}:streamGenerateContent");
         let response = self
             .transport
@@ -226,15 +222,22 @@ impl GeminiClient {
                 "models.stream_generate_content",
                 &["models", &model_action],
                 &request,
+                decode_gemini_error,
             )
             .await?;
-        Ok(response.json_array_stream::<GenerateContentResponse>(1024))
+        let (bytes, metadata) = response.into_parts();
+        Ok(AiResponse::new(
+            json_array::values(bytes, AiProvider::Gemini, "models.stream_generate_content"),
+            metadata,
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "stream")]
+    use crate::core::test_support::chunked_server;
     use crate::core::test_support::{cross_origin_redirect_server, json_response, one_shot_server};
 
     #[test]
@@ -363,5 +366,137 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    #[cfg(feature = "stream")]
+    #[tokio::test]
+    async fn stream_handshake_returns_metadata_wire_path_and_provider_errors() {
+        use futures::StreamExt;
+
+        let (base_url, request) = chunked_server(
+            "v1beta",
+            &[
+                ("x-goog-request-id", "req_gemini_stream"),
+                ("x-ratelimit-remaining-tokens", "44"),
+            ],
+            vec![b"[]".to_vec()],
+        )
+        .await;
+        let response = GeminiClient::builder()
+            .api_key("key".into())
+            .base_url(base_url)
+            .build()
+            .unwrap()
+            .generate_content_streamed(
+                GeminiModel::Gemini2_0Flash,
+                GenerateContentRequest {
+                    contents: vec![],
+                    safety_settings: None,
+                    generation_config: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            response.metadata().request_id.as_deref(),
+            Some("req_gemini_stream")
+        );
+        assert_eq!(
+            response.metadata().rate_limit.remaining_tokens.as_deref(),
+            Some("44")
+        );
+        let mut values = response.into_inner();
+        assert!(values.next().await.is_none());
+        let request = request.await.unwrap();
+        assert!(request.starts_with(
+            "POST /v1beta/models/gemini-2.0-flash:streamGenerateContent HTTP/1.1\r\n"
+        ));
+
+        let error_body =
+            r#"{"error":{"code":429,"message":"private handshake","status":"RESOURCE_EXHAUSTED"}}"#;
+        let response = json_response(
+            "429 Too Many Requests",
+            &[("x-goog-request-id", "req_gemini_stream_error")],
+            error_body,
+        );
+        let (base_url, request) = one_shot_server("v1beta", response).await;
+        let result = GeminiClient::builder()
+            .api_key("key".into())
+            .base_url(base_url)
+            .build()
+            .unwrap()
+            .generate_content_streamed(
+                GeminiModel::Gemini2_0Flash,
+                GenerateContentRequest {
+                    contents: vec![],
+                    safety_settings: None,
+                    generation_config: None,
+                },
+            )
+            .await;
+        request.await.unwrap();
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("expected Gemini handshake failure"),
+        };
+        match &error {
+            AiError::Api {
+                operation,
+                metadata,
+                error,
+                ..
+            } => {
+                assert_eq!(*operation, "models.stream_generate_content");
+                assert_eq!(
+                    metadata.request_id.as_deref(),
+                    Some("req_gemini_stream_error")
+                );
+                assert_eq!(error.code(), Some("429"));
+                assert_eq!(error.kind(), Some("RESOURCE_EXHAUSTED"));
+            }
+            other => panic!("expected handshake API error, got {other:?}"),
+        }
+        assert!(!format!("{error:?}").contains("private handshake"));
+
+        let non_json = "<html>private Gemini gateway</html>";
+        let response = format!(
+            "HTTP/1.1 502 Bad Gateway\r\nx-goog-request-id: req_gemini_non_json\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{non_json}",
+            non_json.len()
+        );
+        let (base_url, request) = one_shot_server("v1beta", response).await;
+        let result = GeminiClient::builder()
+            .api_key("key".into())
+            .base_url(base_url)
+            .build()
+            .unwrap()
+            .generate_content_streamed(
+                GeminiModel::Gemini2_0Flash,
+                GenerateContentRequest {
+                    contents: vec![],
+                    safety_settings: None,
+                    generation_config: None,
+                },
+            )
+            .await;
+        request.await.unwrap();
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("expected non-JSON Gemini stream handshake failure"),
+        };
+        match &error {
+            AiError::Api {
+                operation,
+                metadata,
+                error,
+                ..
+            } => {
+                assert_eq!(*operation, "models.stream_generate_content");
+                assert_eq!(metadata.request_id.as_deref(), Some("req_gemini_non_json"));
+                assert_eq!(error.body().as_str(), non_json);
+            }
+            other => panic!("expected non-JSON API error, got {other:?}"),
+        }
+        assert!(!format!("{error:?}").contains("private Gemini gateway"));
+        assert!(!error.to_string().contains("private Gemini gateway"));
     }
 }

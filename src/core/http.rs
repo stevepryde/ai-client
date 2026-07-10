@@ -7,10 +7,15 @@ use reqwest::{
 };
 use serde::{de::DeserializeOwned, Serialize};
 
+#[cfg(feature = "stream")]
+use futures::StreamExt;
+
 use crate::error::{
     AiError, AiProvider, AiResponse, AiResult, BodySnippet, ConfigErrorKind, ProviderApiError,
     RateLimitMetadata, ResponseMetadata, TransportErrorKind,
 };
+#[cfg(feature = "stream")]
+use crate::stream::{AiStream, AiStreamError, AiStreamErrorKind};
 
 const MAX_ERROR_BODY_BYTES: usize = 8 * 1024;
 
@@ -134,31 +139,37 @@ impl HttpTransport {
     }
 
     #[cfg(feature = "stream")]
-    pub(crate) async fn post_json_stream<Req: Serialize + ?Sized>(
+    pub(crate) async fn post_json_stream<Req, D>(
         &self,
         operation: &'static str,
         path: &str,
         request: &Req,
-    ) -> AiResult<reqwest::Response> {
+        decode_error: D,
+    ) -> AiResult<AiResponse<AiStream<Vec<u8>>>>
+    where
+        Req: Serialize + ?Sized,
+        D: FnOnce(&[u8], BodySnippet) -> ProviderApiError,
+    {
         let request = self.json_request(Method::POST, path, request)?;
-        request
-            .send()
+        self.send_stream_handshake(operation, request, decode_error)
             .await
-            .map_err(|error| transport_error(self.provider, operation, error))
     }
 
     #[cfg(feature = "stream")]
-    pub(crate) async fn post_json_stream_segments<Req: Serialize + ?Sized>(
+    pub(crate) async fn post_json_stream_segments<Req, D>(
         &self,
         operation: &'static str,
         path_segments: &[&str],
         request: &Req,
-    ) -> AiResult<reqwest::Response> {
+        decode_error: D,
+    ) -> AiResult<AiResponse<AiStream<Vec<u8>>>>
+    where
+        Req: Serialize + ?Sized,
+        D: FnOnce(&[u8], BodySnippet) -> ProviderApiError,
+    {
         let request = self.json_request_segments(Method::POST, path_segments, request)?;
-        request
-            .send()
+        self.send_stream_handshake(operation, request, decode_error)
             .await
-            .map_err(|error| transport_error(self.provider, operation, error))
     }
 
     fn json_request<Req: Serialize + ?Sized>(
@@ -230,6 +241,49 @@ impl HttpTransport {
                 error: Box::new(error),
             })
         }
+    }
+
+    #[cfg(feature = "stream")]
+    async fn send_stream_handshake<D>(
+        &self,
+        operation: &'static str,
+        request: reqwest::RequestBuilder,
+        decode_error: D,
+    ) -> AiResult<AiResponse<AiStream<Vec<u8>>>>
+    where
+        D: FnOnce(&[u8], BodySnippet) -> ProviderApiError,
+    {
+        let response = request
+            .send()
+            .await
+            .map_err(|error| transport_error(self.provider, operation, error))?;
+        let metadata = response_metadata(response.status(), response.headers());
+        if !metadata.status.is_success() {
+            let (bytes, truncated) = read_bounded_body(response, MAX_ERROR_BODY_BYTES)
+                .await
+                .map_err(|error| transport_error(self.provider, operation, error))?;
+            let body = BodySnippet::from_bytes(&bytes, truncated);
+            let error = decode_error(&bytes, body);
+            return Err(AiError::Api {
+                provider: self.provider,
+                operation,
+                metadata: Box::new(metadata),
+                error: Box::new(error),
+            });
+        }
+
+        let provider = self.provider;
+        let stream = response.bytes_stream().map(move |result| {
+            result.map(|bytes| bytes.to_vec()).map_err(|error| {
+                let kind = if error.is_timeout() {
+                    AiStreamErrorKind::Timeout
+                } else {
+                    AiStreamErrorKind::Transport(classify_transport_error(&error))
+                };
+                AiStreamError::new(provider, operation, kind)
+            })
+        });
+        Ok(AiResponse::new(AiStream::new(stream), metadata))
     }
 
     pub(crate) fn build_url(&self, path: &str, query: &[(String, String)]) -> AiResult<Url> {
@@ -332,7 +386,16 @@ fn transport_error(
             operation,
         };
     }
-    let kind = if error.is_connect() {
+    let kind = classify_transport_error(&error);
+    AiError::Transport {
+        provider,
+        operation,
+        kind,
+    }
+}
+
+fn classify_transport_error(error: &reqwest::Error) -> TransportErrorKind {
+    if error.is_connect() {
         TransportErrorKind::Connect
     } else if error.is_body() || error.is_decode() {
         TransportErrorKind::Body
@@ -340,11 +403,6 @@ fn transport_error(
         TransportErrorKind::Request
     } else {
         TransportErrorKind::Unknown
-    };
-    AiError::Transport {
-        provider,
-        operation,
-        kind,
     }
 }
 

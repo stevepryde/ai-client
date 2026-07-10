@@ -1,10 +1,6 @@
 use std::{fmt::Debug, time::Duration};
 
-#[cfg(feature = "stream")]
-use futures::Stream;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
-#[cfg(feature = "stream")]
-use reqwest_streams::error::StreamBodyError;
 
 #[cfg(all(feature = "chat-completions", feature = "stream"))]
 use crate::openai::create_chat_completion::OpenAIStreamChunk;
@@ -23,6 +19,11 @@ use crate::{
         create_response::{OpenAIResponsesCreateRequest, OpenAIResponsesCreateResponse},
         list_models::{OpenAIModelInfo, OpenAIModelsListResponse},
     },
+};
+#[cfg(feature = "stream")]
+use crate::{
+    core::sse,
+    stream::{AiStream, SseJsonEvent},
 };
 
 use super::OpenAIModel;
@@ -179,78 +180,6 @@ fn scalar(value: &Option<serde_json::Value>) -> Option<String> {
     }
 }
 
-#[cfg(feature = "stream")]
-async fn parse_sse_stream<T>(
-    response: reqwest::Response,
-) -> impl Stream<Item = Result<T, StreamBodyError>>
-where
-    T: serde::de::DeserializeOwned + std::fmt::Debug,
-{
-    use futures::{stream, StreamExt};
-
-    let byte_stream = response.bytes_stream();
-    stream::unfold(
-        (byte_stream, String::new(), Vec::<u8>::new()),
-        |(mut byte_stream, mut buffer, mut remainder)| async move {
-            loop {
-                if let Some(pos) = buffer.find("\n\n") {
-                    let event = buffer[..pos].to_string();
-                    buffer.drain(..pos + 2);
-                    for line in event.lines() {
-                        if let Some(data) = line.strip_prefix("data: ") {
-                            if data.trim() == "[DONE]" {
-                                continue;
-                            }
-                            return Some((
-                                serde_json::from_str::<T>(data).map_err(|_| {
-                                    StreamBodyError::new(
-                                        reqwest_streams::error::StreamBodyKind::CodecError,
-                                        None,
-                                        Some("failed to decode SSE JSON".to_string()),
-                                    )
-                                }),
-                                (byte_stream, buffer, remainder),
-                            ));
-                        }
-                    }
-                }
-                match byte_stream.next().await {
-                    Some(Ok(bytes)) => {
-                        let combined = if remainder.is_empty() {
-                            bytes.to_vec()
-                        } else {
-                            let mut combined = std::mem::take(&mut remainder);
-                            combined.extend_from_slice(&bytes);
-                            combined
-                        };
-                        match std::str::from_utf8(&combined) {
-                            Ok(text) => buffer.push_str(text),
-                            Err(error) => {
-                                let valid_up_to = error.valid_up_to();
-                                if let Ok(valid) = std::str::from_utf8(&combined[..valid_up_to]) {
-                                    buffer.push_str(valid);
-                                }
-                                remainder = combined[valid_up_to..].to_vec();
-                            }
-                        }
-                    }
-                    Some(Err(error)) => {
-                        return Some((
-                            Err(StreamBodyError::new(
-                                reqwest_streams::error::StreamBodyKind::InputOutputError,
-                                Some(Box::new(error)),
-                                None,
-                            )),
-                            (byte_stream, buffer, remainder),
-                        ));
-                    }
-                    None => return None,
-                }
-            }
-        },
-    )
-}
-
 #[non_exhaustive]
 pub struct OpenAIClient {
     transport: HttpTransport,
@@ -292,6 +221,7 @@ impl OpenAIClient {
         mut request: OpenAIGenerateContentRequest,
     ) -> AiResult<AiResponse<OpenAIGenerateContentResponse>> {
         request.sanitise();
+        request.stream = None;
         self.transport
             .post_json(
                 "chat_completions.create",
@@ -309,13 +239,23 @@ impl OpenAIClient {
     pub async fn generate_content_streamed(
         &self,
         mut request: OpenAIGenerateContentRequest,
-    ) -> AiResult<impl Stream<Item = Result<OpenAIStreamChunk, StreamBodyError>>> {
+    ) -> AiResult<AiResponse<AiStream<SseJsonEvent<OpenAIStreamChunk>>>> {
         request.sanitise();
+        request.stream = Some(true);
         let response = self
             .transport
-            .post_json_stream("chat_completions.stream", "chat/completions", &request)
+            .post_json_stream(
+                "chat_completions.stream",
+                "chat/completions",
+                &request,
+                decode_openai_error,
+            )
             .await?;
-        Ok(parse_sse_stream(response).await)
+        let (bytes, metadata) = response.into_parts();
+        Ok(AiResponse::new(
+            sse::json_events(bytes, AiProvider::OpenAI, "chat_completions.stream"),
+            metadata,
+        ))
     }
 
     /// Create a response with OpenAI's primary Responses API.
@@ -327,6 +267,7 @@ impl OpenAIClient {
         mut request: OpenAIResponsesCreateRequest,
     ) -> AiResult<AiResponse<OpenAIResponsesCreateResponse>> {
         request.sanitise();
+        request.stream = None;
         self.transport
             .post_json(
                 "responses.create",
@@ -344,22 +285,33 @@ impl OpenAIClient {
     pub async fn generate_response_streamed(
         &self,
         mut request: OpenAIResponsesCreateRequest,
-    ) -> AiResult<impl Stream<Item = Result<OpenAIResponsesStreamEvent, StreamBodyError>>> {
+    ) -> AiResult<AiResponse<AiStream<SseJsonEvent<OpenAIResponsesStreamEvent>>>> {
         request.sanitise();
+        request.stream = Some(true);
         let response = self
             .transport
-            .post_json_stream("responses.stream", "responses", &request)
+            .post_json_stream(
+                "responses.stream",
+                "responses",
+                &request,
+                decode_openai_error,
+            )
             .await?;
-        Ok(parse_sse_stream(response).await)
+        let (bytes, metadata) = response.into_parts();
+        Ok(AiResponse::new(
+            sse::json_events(bytes, AiProvider::OpenAI, "responses.stream"),
+            metadata,
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "stream")]
+    use crate::core::test_support::chunked_server;
     use crate::core::test_support::{
-        chunked_server, cross_origin_redirect_server, delayed_server, json_response,
-        one_shot_server,
+        cross_origin_redirect_server, delayed_server, json_response, one_shot_server,
     };
 
     #[test]
@@ -569,37 +521,213 @@ mod tests {
 
     #[cfg(feature = "stream")]
     #[tokio::test]
-    async fn sse_regression_decodes_basic_json_and_split_utf8() {
+    async fn responses_stream_owns_wire_mode_metadata_raw_and_handshake_errors() {
         use futures::StreamExt;
 
-        let mut first = br#"data: {"text":"hello"}
+        let event = br#"data: {"type":"future.response.event","private":"inspectable"}
 
-data: {"text":"caf"#
-            .to_vec();
-        first.push(0xC3);
-        let mut second = vec![0xA9];
-        second.extend_from_slice(
-            br#""}
-
-"#,
-        );
-        let (base_url, request) = chunked_server(vec![first, second]).await;
-        let response = reqwest::Client::new()
-            .get(format!("{base_url}/events"))
-            .send()
+"#
+        .to_vec();
+        let (base_url, request) = chunked_server(
+            "v1",
+            &[
+                ("x-request-id", "req_responses_stream"),
+                ("x-ratelimit-remaining-tokens", "88"),
+            ],
+            vec![event],
+        )
+        .await;
+        let response = OpenAIClient::builder()
+            .api_key("stream-key".into())
+            .base_url(base_url)
+            .build()
+            .unwrap()
+            .generate_response_streamed(
+                OpenAIResponsesCreateRequest::builder()
+                    .model(OpenAIModel::Gpt4oMini)
+                    .input(crate::openai::create_response::OpenAIResponsesInput::Text(
+                        "hello".into(),
+                    ))
+                    .stream(false)
+                    .build(),
+            )
             .await
             .unwrap();
-        let events = parse_sse_stream::<serde_json::Value>(response).await;
-        futures::pin_mut!(events);
+        assert_eq!(
+            response.metadata().request_id.as_deref(),
+            Some("req_responses_stream")
+        );
+        assert_eq!(
+            response.metadata().rate_limit.remaining_tokens.as_deref(),
+            Some("88")
+        );
+        let mut events = response.into_inner();
+        let event = events.next().await.unwrap().unwrap();
+        assert!(matches!(event.data(), OpenAIResponsesStreamEvent::Unknown));
+        assert_eq!(event.raw()["private"], "inspectable");
+        let request = request.await.unwrap();
+        let body: serde_json::Value =
+            serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(body["stream"], true);
 
-        assert_eq!(
-            events.next().await.unwrap().unwrap()["text"],
-            serde_json::json!("hello")
+        let error_body = r#"{"error":{"message":"private handshake","type":"authentication_error","code":"bad_key"}}"#;
+        let response = json_response(
+            "401 Unauthorized",
+            &[("x-request-id", "req_stream_error")],
+            error_body,
         );
-        assert_eq!(
-            events.next().await.unwrap().unwrap()["text"],
-            serde_json::json!("café")
-        );
+        let (base_url, request) = one_shot_server("v1", response).await;
+        let result = OpenAIClient::builder()
+            .api_key("bad-key".into())
+            .base_url(base_url)
+            .build()
+            .unwrap()
+            .generate_response_streamed(
+                OpenAIResponsesCreateRequest::builder()
+                    .model(OpenAIModel::Gpt4oMini)
+                    .input(crate::openai::create_response::OpenAIResponsesInput::Text(
+                        "hello".into(),
+                    ))
+                    .build(),
+            )
+            .await;
         request.await.unwrap();
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("expected OpenAI stream handshake failure"),
+        };
+        match &error {
+            AiError::Api {
+                operation,
+                metadata,
+                error,
+                ..
+            } => {
+                assert_eq!(*operation, "responses.stream");
+                assert_eq!(metadata.request_id.as_deref(), Some("req_stream_error"));
+                assert_eq!(error.code(), Some("bad_key"));
+            }
+            other => panic!("expected handshake API error, got {other:?}"),
+        }
+        assert!(!format!("{error:?}").contains("private handshake"));
+
+        let non_json = "<html>private stream gateway</html>";
+        let response = format!(
+            "HTTP/1.1 502 Bad Gateway\r\nx-request-id: req_stream_non_json\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{non_json}",
+            non_json.len()
+        );
+        let (base_url, request) = one_shot_server("v1", response).await;
+        let result = OpenAIClient::builder()
+            .api_key("key".into())
+            .base_url(base_url)
+            .build()
+            .unwrap()
+            .generate_response_streamed(
+                OpenAIResponsesCreateRequest::builder()
+                    .model(OpenAIModel::Gpt4oMini)
+                    .input(crate::openai::create_response::OpenAIResponsesInput::Text(
+                        "hello".into(),
+                    ))
+                    .build(),
+            )
+            .await;
+        request.await.unwrap();
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("expected non-JSON stream handshake failure"),
+        };
+        match &error {
+            AiError::Api {
+                operation,
+                metadata,
+                error,
+                ..
+            } => {
+                assert_eq!(*operation, "responses.stream");
+                assert_eq!(metadata.request_id.as_deref(), Some("req_stream_non_json"));
+                assert_eq!(error.body().as_str(), non_json);
+            }
+            other => panic!("expected non-JSON API error, got {other:?}"),
+        }
+        assert!(!format!("{error:?}").contains("private stream gateway"));
+        assert!(!error.to_string().contains("private stream gateway"));
+    }
+
+    #[tokio::test]
+    async fn responses_nonstream_overwrites_caller_stream_mode() {
+        let body = r#"{"id":"resp_1","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[],"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0},"metadata":{}}"#;
+        let (base_url, request) = one_shot_server("v1", json_response("200 OK", &[], body)).await;
+        OpenAIClient::builder()
+            .api_key("key".into())
+            .base_url(base_url)
+            .build()
+            .unwrap()
+            .generate_response(
+                OpenAIResponsesCreateRequest::builder()
+                    .model(OpenAIModel::Gpt4oMini)
+                    .input(crate::openai::create_response::OpenAIResponsesInput::Text(
+                        "hello".into(),
+                    ))
+                    .stream(true)
+                    .build(),
+            )
+            .await
+            .unwrap();
+        let request = request.await.unwrap();
+        let body: serde_json::Value =
+            serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert!(body.get("stream").is_none());
+    }
+
+    #[cfg(all(feature = "chat-completions", feature = "stream"))]
+    #[tokio::test]
+    async fn chat_stream_and_nonstream_own_wire_mode() {
+        use futures::StreamExt;
+
+        let make_request = |stream| {
+            OpenAIGenerateContentRequest::builder()
+                .model(OpenAIModel::Gpt4oMini)
+                .messages(vec![crate::openai::OpenAIPrompt {
+                    role: crate::openai::OpenAIRole::User,
+                    content: "hello".into(),
+                }])
+                .stream(stream)
+                .build()
+        };
+        let event = br#"data: {"id":"chunk","object":"chat.completion.chunk","created":0,"model":"gpt-4o-mini","choices":[],"usage":null}
+
+"#
+        .to_vec();
+        let (base_url, request) = chunked_server("v1", &[], vec![event]).await;
+        let response = OpenAIClient::builder()
+            .api_key("key".into())
+            .base_url(base_url)
+            .build()
+            .unwrap()
+            .generate_content_streamed(make_request(false))
+            .await
+            .unwrap();
+        let mut events = response.into_inner();
+        assert!(events.next().await.unwrap().is_ok());
+        let request = request.await.unwrap();
+        let body: serde_json::Value =
+            serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(body["stream"], true);
+
+        let response_body = r#"{"choices":[],"created":0,"id":"chat","model":"gpt-4o-mini","object":"chat.completion","usage":{"completion_tokens":0,"prompt_tokens":0,"total_tokens":0}}"#;
+        let (base_url, request) =
+            one_shot_server("v1", json_response("200 OK", &[], response_body)).await;
+        OpenAIClient::builder()
+            .api_key("key".into())
+            .base_url(base_url)
+            .build()
+            .unwrap()
+            .generate_content(make_request(true))
+            .await
+            .unwrap();
+        let request = request.await.unwrap();
+        let body: serde_json::Value =
+            serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert!(body.get("stream").is_none());
     }
 }
