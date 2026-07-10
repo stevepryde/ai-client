@@ -15,7 +15,7 @@ error[E0277]: the trait bound `GeminiModel: OpenAIResponsesModel` is not satisfi
             ai_client::openai::responses::Gpt5Nano
           and $N others
 note: required by a bound in `ResponseRequest`
- --> src/openai/responses/request.rs
+ --> src/openai/responses/request/builder.rs
   |
   | pub struct ResponseRequest<M: OpenAIResponsesModel>(PhantomData<fn() -> M>);
   |                               ^^^^^^^^^^^^^^^^^^^^ required by this bound in `ResponseRequest`

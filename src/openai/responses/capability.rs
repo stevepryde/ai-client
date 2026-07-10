@@ -67,6 +67,11 @@ pub trait SupportsPromptCacheRetention: OpenAIResponsesModel {
 }
 pub trait SupportsStructuredOutput: OpenAIResponsesModel {}
 pub trait SupportsImageGenerationTool: OpenAIResponsesModel {}
+/// Opt-in gate for known-model builders that accept the heterogeneous
+/// Responses item-input union. Downstream model markers must opt in explicitly;
+/// the checked-in OpenAI models are reviewed against their Responses and image
+/// input documentation before receiving this capability.
+pub trait SupportsItemInput: OpenAIResponsesModel {}
 
 pub trait IntoPromptCacheRetention {
     fn into_prompt_cache_retention(self) -> &'static str;

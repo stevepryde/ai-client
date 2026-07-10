@@ -1,5 +1,4 @@
 use ai_client::openai::{
-    create_response::OpenAIResponsesInput,
     responses::{
         DynamicOpenAIModel, DynamicResponseRequest, ResponseModelCapabilities,
         ResponseModelCapabilitiesCatalog, StaticResponseModelCapabilitiesCatalog,
@@ -16,7 +15,7 @@ fn main() {
     catalog.insert("local-model", ResponseModelCapabilities::new());
     assert_catalog(&catalog);
     let request = DynamicResponseRequest::builder(DynamicOpenAIModel::new("local-model").unwrap())
-        .input(OpenAIResponsesInput::Text("hello".into()))
+        .input_text("hello")
         .validation(ValidationMode::Strict)
         .catalog(catalog)
         .build();

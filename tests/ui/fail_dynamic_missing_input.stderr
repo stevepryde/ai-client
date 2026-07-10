@@ -1,7 +1,0 @@
-error[E0599]: no method named `build` found for struct `DynamicResponseRequestBuilder<MissingInput>` in the current scope
- --> tests/ui/fail_dynamic_missing_input.rs:5:52
-  |
-5 |     let _ = DynamicResponseRequest::builder(model).build();
-  |                                                    ^^^^^ method not found in `DynamicResponseRequestBuilder<MissingInput>`
-  |
-  = note: the method was found for `DynamicResponseRequestBuilder<HasInput>`

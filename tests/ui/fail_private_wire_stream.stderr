@@ -1,10 +1,10 @@
 error[E0624]: method `wire_mut` is private
-  --> tests/ui/fail_private_wire_stream.rs:10:13
-   |
-10 |     request.wire_mut().stream = Some(true);
-   |             ^^^^^^^^ private method
-   |
-  ::: src/openai/responses/request.rs
-   |
-   |     pub(crate) fn wire_mut(&mut self) -> &mut OpenAIResponsesWireRequest {
-   |     -------------------------------------------------------------------- private method defined here
+ --> tests/ui/fail_private_wire_stream.rs:9:13
+  |
+9 |     request.wire_mut().stream = Some(true);
+  |             ^^^^^^^^ private method
+  |
+ ::: src/openai/responses/request/wire.rs
+  |
+  |     pub(crate) fn wire_mut(&mut self) -> &mut OpenAIResponsesWireRequest {
+  |     -------------------------------------------------------------------- private method defined here

@@ -1,5 +1,4 @@
 use ai_client::openai::{
-    create_response::OpenAIResponsesInput,
     responses::{
         IntoReasoningEffort, OpenAIResponsesModel, ResponseRequest, SupportsReasoning,
     },
@@ -17,7 +16,7 @@ impl SupportsReasoning for FineTuned { type Effort = LocalEffort; }
 
 fn main() {
     let _ = ResponseRequest::<FineTuned>::builder()
-        .input(OpenAIResponsesInput::Text("hello".into()))
+        .input_text("hello")
         .reasoning(LocalEffort::High)
         .build();
 }

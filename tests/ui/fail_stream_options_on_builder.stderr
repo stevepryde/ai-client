@@ -1,0 +1,9 @@
+error[E0599]: no method named `stream_options` found for struct `ResponseRequestBuilder<M>` in the current scope
+ --> tests/ui/fail_stream_options_on_builder.rs:7:10
+  |
+6 |       let _request = ResponseRequest::<Gpt4o>::builder()
+  |  ____________________-
+7 | |         .stream_options(CreateResponseStreamOptions::new().include_obfuscation(false))
+  | |         -^^^^^^^^^^^^^^ method not found in `ResponseRequestBuilder<ai_client::openai::responses::Gpt4o>`
+  | |_________|
+  |

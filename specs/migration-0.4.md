@@ -5,42 +5,40 @@ Status: draft
 ## OpenAI Responses requests
 
 Direct construction of `OpenAIResponsesCreateRequest` is replaced by a typed
-known-model builder. The builder requires input before `build()` and exposes
-only settings supported by its model marker:
+known-model builder. It exposes only settings supported by its model marker;
+input is optional so conversation-linked, continuation, and reusable-prompt
+requests remain representable:
 
 ```rust,ignore
-use ai_client::openai::{
-    create_response::OpenAIResponsesInput,
-    responses::{Gpt5, Gpt5ReasoningEffort, ResponseRequest},
-};
+use ai_client::openai::responses::{Gpt5, Gpt5ReasoningEffort, ResponseRequest};
 
 let request = ResponseRequest::<Gpt5>::builder()
-    .input(OpenAIResponsesInput::Text("Hello".into()))
+    .input_text("Hello")
     .reasoning(Gpt5ReasoningEffort::High)
     .build();
-let response = client.generate_response(request).await?;
+let response = client.responses().create(request).await?;
 ```
 
 For a model ID selected at runtime, use the explicit dynamic path. Validation
-never deletes or coerces configured fields. The dynamic builder also requires
-`input(...)` before its `build()` method becomes available:
+never deletes or coerces configured fields. Like the known-model builder, the
+dynamic builder can build an inputless request when another configured field
+supplies the context:
 
 ```rust,ignore
-use ai_client::openai::{
-    create_response::OpenAIResponsesInput,
-    responses::{DynamicOpenAIModel, DynamicResponseRequest, ValidationMode},
+use ai_client::openai::responses::{
+    DynamicOpenAIModel, DynamicResponseRequest, ValidationMode,
 };
 
 let model = DynamicOpenAIModel::new(configured_model_id)?;
 let request = DynamicResponseRequest::builder(model)
-    .input(OpenAIResponsesInput::Text("Hello".into()))
+    .input_text("Hello")
     .validation(ValidationMode::Warn)
     .builtin_catalog()
     .build()?;
 for warning in request.warnings() {
     // Surface or record the explicit validation warning.
 }
-let response = client.generate_response(request).await?;
+let response = client.responses().create(request).await?;
 ```
 
 `OpenAIModel` remains available for model retrieval and the default-off legacy
@@ -49,8 +47,9 @@ Chat Completions API. It is no longer the native Responses request model type.
 ## Streaming
 
 The same `PreparedResponseRequest` can be passed to
-`generate_response_streamed`. The client owns the wire `stream` switch; callers
-do not set it on the request.
+`client.responses().create_stream(...)`. The resource owns the wire `stream`
+switch; callers do not set it on the request. The old `generate_response*`
+methods remain forwarding methods during migration.
 
 ## Native OpenAI Chat Completions
 

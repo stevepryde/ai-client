@@ -106,6 +106,22 @@ impl HttpTransport {
         self.send_and_decode(operation, request, decode_error).await
     }
 
+    #[cfg(feature = "stream")]
+    pub(crate) async fn get_json_stream_segments<D>(
+        &self,
+        operation: &'static str,
+        path_segments: &[&str],
+        query: &[(String, String)],
+        decode_error: D,
+    ) -> AiResult<AiResponse<AiStream<Vec<u8>>>>
+    where
+        D: FnOnce(&[u8], BodySnippet) -> ProviderApiError,
+    {
+        let request = self.request_segments(Method::GET, path_segments, query)?;
+        self.send_stream_handshake(operation, request, decode_error)
+            .await
+    }
+
     pub(crate) async fn post_json<Req, Res, D>(
         &self,
         operation: &'static str,
@@ -136,6 +152,70 @@ impl HttpTransport {
     {
         let request = self.json_request_segments(Method::POST, path_segments, request)?;
         self.send_and_decode(operation, request, decode_error).await
+    }
+
+    pub(crate) async fn post_json_segments_with_query<Req, Res, D>(
+        &self,
+        operation: &'static str,
+        path_segments: &[&str],
+        query: &[(String, String)],
+        request: &Req,
+        decode_error: D,
+    ) -> AiResult<AiResponse<Res>>
+    where
+        Req: Serialize + ?Sized,
+        Res: DeserializeOwned,
+        D: FnOnce(&[u8], BodySnippet) -> ProviderApiError,
+    {
+        let url = self.build_url_segments(path_segments, query)?;
+        let request = self
+            .client
+            .request(Method::POST, url)
+            .headers(self.headers.clone())
+            .json(request);
+        self.send_and_decode(operation, request, decode_error).await
+    }
+
+    pub(crate) async fn post_empty_segments<Res, D>(
+        &self,
+        operation: &'static str,
+        path_segments: &[&str],
+        decode_error: D,
+    ) -> AiResult<AiResponse<Res>>
+    where
+        Res: DeserializeOwned,
+        D: FnOnce(&[u8], BodySnippet) -> ProviderApiError,
+    {
+        let request = self.request_segments(Method::POST, path_segments, &[])?;
+        self.send_and_decode(operation, request, decode_error).await
+    }
+
+    pub(crate) async fn delete_json_segments<Res, D>(
+        &self,
+        operation: &'static str,
+        path_segments: &[&str],
+        decode_error: D,
+    ) -> AiResult<AiResponse<Res>>
+    where
+        Res: DeserializeOwned,
+        D: FnOnce(&[u8], BodySnippet) -> ProviderApiError,
+    {
+        let request = self.request_segments(Method::DELETE, path_segments, &[])?;
+        self.send_and_decode(operation, request, decode_error).await
+    }
+
+    pub(crate) async fn delete_empty_segments<D>(
+        &self,
+        operation: &'static str,
+        path_segments: &[&str],
+        decode_error: D,
+    ) -> AiResult<AiResponse<()>>
+    where
+        D: FnOnce(&[u8], BodySnippet) -> ProviderApiError,
+    {
+        let request = self.request_segments(Method::DELETE, path_segments, &[])?;
+        self.send_and_decode_empty(operation, request, decode_error)
+            .await
     }
 
     #[cfg(feature = "stream")]
@@ -200,6 +280,19 @@ impl HttpTransport {
             .json(request))
     }
 
+    fn request_segments(
+        &self,
+        method: Method,
+        path_segments: &[&str],
+        query: &[(String, String)],
+    ) -> AiResult<reqwest::RequestBuilder> {
+        let url = self.build_url_segments(path_segments, query)?;
+        Ok(self
+            .client
+            .request(method, url)
+            .headers(self.headers.clone()))
+    }
+
     async fn send_and_decode<T, D>(
         &self,
         operation: &'static str,
@@ -241,6 +334,37 @@ impl HttpTransport {
                 error: Box::new(error),
             })
         }
+    }
+
+    async fn send_and_decode_empty<D>(
+        &self,
+        operation: &'static str,
+        request: reqwest::RequestBuilder,
+        decode_error: D,
+    ) -> AiResult<AiResponse<()>>
+    where
+        D: FnOnce(&[u8], BodySnippet) -> ProviderApiError,
+    {
+        let response = request
+            .send()
+            .await
+            .map_err(|error| transport_error(self.provider, operation, error))?;
+        let metadata = response_metadata(response.status(), response.headers());
+        if metadata.status.is_success() {
+            return Ok(AiResponse::new((), metadata));
+        }
+
+        let (bytes, truncated) = read_bounded_body(response, MAX_ERROR_BODY_BYTES)
+            .await
+            .map_err(|error| transport_error(self.provider, operation, error))?;
+        let body = BodySnippet::from_bytes(&bytes, truncated);
+        let error = decode_error(&bytes, body);
+        Err(AiError::Api {
+            provider: self.provider,
+            operation,
+            metadata: Box::new(metadata),
+            error: Box::new(error),
+        })
     }
 
     #[cfg(feature = "stream")]
@@ -506,6 +630,10 @@ mod tests {
         (format!("http://{address}/v1"), handle)
     }
 
+    fn test_error(body: BodySnippet) -> ProviderApiError {
+        ProviderApiError::new("test API error", None, None, None, body)
+    }
+
     #[test]
     fn preserves_prefix_and_percent_encodes_query() {
         let transport = transport("https://example.com/gateway/v1");
@@ -695,5 +823,199 @@ mod tests {
         }
         assert!(!debug.contains(secret));
         assert!(!display.contains(secret));
+    }
+
+    #[tokio::test]
+    async fn delete_empty_segments_accepts_an_empty_success_and_encodes_the_id() {
+        let response = "HTTP/1.1 200 OK\r\nx-request-id: req_delete\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string();
+        let (base_url, request) = one_shot_server(response).await;
+        let transport = transport(&base_url);
+
+        let response = transport
+            .delete_empty_segments("test.delete", &["responses", "resp/a"], |_, body| {
+                test_error(body)
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.metadata().request_id.as_deref(),
+            Some("req_delete")
+        );
+        let request = request.await.unwrap();
+        assert!(request.starts_with("DELETE /v1/responses/resp%2Fa HTTP/1.1\r\n"));
+        assert!(request.ends_with("\r\n\r\n"));
+    }
+
+    #[tokio::test]
+    async fn delete_json_segments_decodes_the_success_body() {
+        let body = r#"{"id":"conv_123","deleted":true}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let (base_url, request) = one_shot_server(response).await;
+        let transport = transport(&base_url);
+
+        let response = transport
+            .delete_json_segments::<serde_json::Value, _>(
+                "test.delete_json",
+                &["conversations", "conv_123"],
+                |_, body| test_error(body),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.data()["deleted"], true);
+        assert!(request
+            .await
+            .unwrap()
+            .starts_with("DELETE /v1/conversations/conv_123 HTTP/1.1\r\n"));
+    }
+
+    #[tokio::test]
+    async fn post_empty_segments_sends_no_json_body() {
+        let body = r#"{"id":"resp_123","status":"cancelled"}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let (base_url, request) = one_shot_server(response).await;
+        let transport = transport(&base_url);
+
+        let response = transport
+            .post_empty_segments::<serde_json::Value, _>(
+                "test.cancel",
+                &["responses", "resp_123", "cancel"],
+                |_, body| test_error(body),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.data()["status"], "cancelled");
+        let request = request.await.unwrap();
+        assert!(request.starts_with("POST /v1/responses/resp_123/cancel HTTP/1.1\r\n"));
+        assert!(request.ends_with("\r\n\r\n"));
+        assert!(!request.to_ascii_lowercase().contains("content-type:"));
+    }
+
+    #[tokio::test]
+    async fn post_json_segments_with_query_encodes_path_query_and_body() {
+        let body = r#"{"object":"list","data":[]}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let (base_url, request) = one_shot_server(response).await;
+        let transport = transport(&base_url);
+        let query = vec![
+            ("include".into(), "reasoning.encrypted_content".into()),
+            ("include".into(), "message.output_text.logprobs".into()),
+        ];
+
+        let response = transport
+            .post_json_segments_with_query::<_, serde_json::Value, _>(
+                "test.items.create",
+                &["conversations", "conv/a", "items"],
+                &query,
+                &serde_json::json!({"items": []}),
+                |_, body| test_error(body),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.data()["object"], "list");
+
+        let request = request.await.unwrap();
+        assert!(request.starts_with(
+            "POST /v1/conversations/conv%2Fa/items?include=reasoning.encrypted_content&include=message.output_text.logprobs HTTP/1.1\r\n"
+        ));
+        assert!(request.ends_with(r#"{"items":[]}"#));
+    }
+
+    #[cfg(feature = "stream")]
+    #[tokio::test]
+    async fn get_stream_segments_preserves_metadata_and_encodes_query() {
+        use futures::StreamExt;
+
+        let body = "data: {\"type\":\"response.completed\"}\n\n";
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nx-request-id: req_stream\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let (base_url, request) = one_shot_server(response).await;
+        let transport = transport(&base_url);
+        let query = vec![
+            ("stream".to_string(), "true".to_string()),
+            ("starting_after".to_string(), "item/a".to_string()),
+            ("include_obfuscation".to_string(), "false".to_string()),
+        ];
+
+        let response = transport
+            .get_json_stream_segments(
+                "test.retrieve_stream",
+                &["responses", "resp/a"],
+                &query,
+                |_, body| test_error(body),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            response.metadata().request_id.as_deref(),
+            Some("req_stream")
+        );
+        let chunks = response
+            .into_inner()
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(chunks.concat(), body.as_bytes());
+
+        let request = request.await.unwrap();
+        assert!(request.starts_with(
+            "GET /v1/responses/resp%2Fa?stream=true&starting_after=item%2Fa&include_obfuscation=false HTTP/1.1\r\n"
+        ));
+    }
+
+    #[cfg(feature = "stream")]
+    #[tokio::test]
+    async fn get_stream_segments_decodes_non_success_before_streaming() {
+        let body = r#"{"error":{"message":"no such response"}}"#;
+        let response = format!(
+            "HTTP/1.1 404 Not Found\r\nx-request-id: req_missing\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let (base_url, request) = one_shot_server(response).await;
+        let transport = transport(&base_url);
+
+        let result = transport
+            .get_json_stream_segments(
+                "test.retrieve_stream",
+                &["responses", "missing"],
+                &[],
+                |_, body| test_error(body),
+            )
+            .await;
+        let error = match result {
+            Ok(_) => panic!("expected API error"),
+            Err(error) => error,
+        };
+        request.await.unwrap();
+
+        match error {
+            AiError::Api {
+                operation,
+                metadata,
+                error,
+                ..
+            } => {
+                assert_eq!(operation, "test.retrieve_stream");
+                assert_eq!(metadata.status, StatusCode::NOT_FOUND);
+                assert_eq!(metadata.request_id.as_deref(), Some("req_missing"));
+                assert_eq!(error.body().as_str(), body);
+            }
+            other => panic!("expected API error, got {other:?}"),
+        }
     }
 }

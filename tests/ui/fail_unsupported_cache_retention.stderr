@@ -1,10 +1,10 @@
-error[E0599]: the method `prompt_cache_retention` exists for struct `ResponseRequestBuilder<ai_client::openai::responses::Gpt4oMini, HasInput>`, but its trait bounds were not satisfied
- --> tests/ui/fail_unsupported_cache_retention.rs:9:10
+error[E0599]: the method `prompt_cache_retention` exists for struct `ResponseRequestBuilder<ai_client::openai::responses::Gpt4oMini>`, but its trait bounds were not satisfied
+ --> tests/ui/fail_unsupported_cache_retention.rs:8:10
   |
-7 |       let _ = ResponseRequest::<Gpt4oMini>::builder()
+6 |       let _ = ResponseRequest::<Gpt4oMini>::builder()
   |  _____________-
-8 | |         .input(OpenAIResponsesInput::Text("hello".into()))
-9 | |         .prompt_cache_retention(PromptCacheRetention::Hours24)
+7 | |         .input_text("hello")
+8 | |         .prompt_cache_retention(PromptCacheRetention::Hours24)
   | |_________-^^^^^^^^^^^^^^^^^^^^^^
   |
  ::: src/openai/responses/models.rs

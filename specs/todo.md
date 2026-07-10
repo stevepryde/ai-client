@@ -27,7 +27,8 @@ Stack contract: [`stack.md`](stack.md)
 | F2 — streaming transport | accepted | Crate-owned SSE and internal byte streams, handshake errors/metadata, wire stream invariants, adversarial framing and JSON-array tests | **test-only**: 42 unit/integration tests, one doctest, full stream feature matrix/dependency-tree checks, and independent review; no live-provider smoke |
 | F3 — typed model requests | accepted | OpenAI Responses known-model markers, resource-scoped capabilities, input-typestate builders, non-generic wire erasure, and explicit dynamic requests | **test-only**: 49 unit/integration tests, four compile-pass and ten compile-fail fixtures, one doctest, full feature matrix, and independent review; no live-provider smoke |
 | F4 — compatibility separation | accepted | Native Chat Completions deprecation and typed `openai_compatible` dialect framework | **test-only**: 58 unit/integration tests, four compatibility compile-pass and twelve compile-fail fixtures, doctests, full feature matrix, and independent review; no live-provider smoke |
-| F5 — Responses refactor and parity | in progress | Focused resource modules, operation parity, raw unknown variants, Conversations | Pinned OpenAPI source, 7/7 Responses and 8/8 Conversations operations, official fixtures, and lossless unknown-variant tests |
+| F5 — Responses refactor and parity | accepted | Focused resource modules, operation parity, lossless unknown variants, typed closed schemas, and Conversations | **test-only**: pinned-source verification, 7/7 Responses and 8/8 Conversations operations, 116 runtime tests, five Responses compile-pass and nine compile-fail fixtures, compatibility fixtures, doctests, strict clippy, full feature matrix, and independent review; no live-provider smoke |
+| F6 — standalone Images API | pending | Generation, edits, variations, multipart inputs, binary/base64 outputs, and supported partial-image streaming | Pinned Images coverage matrix, exact mock multipart/binary/stream fixtures, and opt-in live smoke |
 
 ### F1 architecture contract
 
@@ -84,9 +85,10 @@ Stack contract: [`stack.md`](stack.md)
 - Responses protocol types are split into focused request, input, output, tool, event, and operation modules. Typed builders still erase into a private non-generic wire request before transport owns streaming mode.
 - Every known tagged input/output/content/annotation/event discriminator is decoded as its documented shape. A known discriminator with malformed fields is an error; an unknown discriminator preserves the entire semantic JSON object in a redacted raw wrapper and serializes losslessly.
 - Create covers all 31 pinned top-level fields, 16 tool definitions, nine tool-choice forms, three text formats, and the pinned input/output unions. All 53 pinned Responses stream event tags are represented, including Responses audio events even though standalone Audio remains deferred.
+- The checked-in multimodal model markers opt into heterogeneous item input from current model evidence; downstream-defined markers must opt in explicitly. Open JSON Schema/provider-extension objects remain typed as map-backed boundaries, while closed nested action/result/configuration schemas are concrete Rust types.
 - Opaque validated IDs and encoded path segments prevent identifier injection. Query/pagination types encode cursors, order, include selectors, stream offsets, and obfuscation explicitly.
 - Existing `OpenAIClient::generate_response*` methods remain migration forwarding methods while `client.responses()` and `client.conversations()` become canonical.
-- F5 acceptance requires the checked-in 7/7 and 8/8 operation matrix, pinned-source verification, exact mock verb/path/query/body tests, official-example fixtures, unknown round-trip and malformed-known rejection, compile fixtures, strict clippy, and the full feature matrix.
+- F5 acceptance requires the checked-in 7/7 and 8/8 operation matrix, pinned-source verification, exact mock verb/path/query/body tests, official-example fixtures except where a recorded source defect contradicts its referenced schema, unknown round-trip and malformed-known rejection, compile fixtures, strict clippy, and the full feature matrix.
 
 ## Goal
 
@@ -94,7 +96,7 @@ Grow `ai-client` into a provider-extensible Rust client that:
 
 - exposes each provider's native API without forcing it through a lowest-common-denominator abstraction;
 - makes OpenAI Responses the primary text and multimodal path;
-- can cover OpenAI text, tools, files, images, audio, Realtime, and later control-plane APIs without creating a giant client or giant type module;
+- covers native OpenAI Responses and standalone Images deeply, while keeping other API families addable later without claiming or planning full-platform coverage;
 - provides a layered unified API that can switch providers without making provider-specific features inaccessible;
 - remains safe, forward-compatible, testable, and economical to compile.
 
@@ -104,10 +106,10 @@ This roadmap deliberately prioritizes the transport and type-system foundations 
 
 1. **Keep provider-native APIs first-class.** OpenAI, Gemini, and future providers keep their own request, response, event, and resource types.
 2. **Share transport mechanics, not provider semantics.** Authentication, JSON, multipart, binary bodies, SSE, pagination, retries, and error decoding belong in a common internal core.
-3. **Organize large providers by resource.** Prefer `client.responses().create(...)`, `client.images().generate(...)`, and `client.audio().transcribe(...)` over adding every method to `OpenAIClient`.
+3. **Organize OpenAI by resource.** The current product boundary is `client.responses()` and `client.images()`; already-completed Conversations support remains as the durable state companion to Responses.
 4. **Deprecate OpenAI's native Chat Completions surface.** Keep it default-off for migration, direct new OpenAI work to Responses, and move reusable compatibility support into a separate typed `openai_compatible` provider family. Do not implement the deprecated Assistants/Threads API unless a concrete downstream migration requirement appears.
 5. **Offer typed known models and an explicit dynamic escape hatch.** Typed model markers provide compile-time capability checks; arbitrary model IDs remain available through a clearly dynamic path. Unknown response variants must retain their raw payload.
-6. **Do not create a workspace yet.** Keep one crate while the providers share the same light dependency set. Reassess a split into core/provider crates when Realtime introduces heavy optional transports or when a third substantial provider lands.
+6. **Do not create a workspace yet.** Keep one crate while the providers share the same light dependency set. Reassess a split only when a third substantial provider or another deliberately approved heavy subsystem lands.
 7. **Treat the official OpenAPI document as a coverage oracle, not as the public Rust API.** Pin it for drift checks and selective code generation, while keeping reviewed, idiomatic public types.
 8. **Unification must be additive, never restrictive.** Full-fidelity native requests remain canonical. Static generic code uses associated provider types; runtime switching uses an explicitly portable request plus typed per-backend defaults or a closed enum of native requests.
 
@@ -651,7 +653,7 @@ Complete the OpenAI Responses resource before adding another text-generation abs
 Exit criteria:
 
 - every Responses and Conversations operation in the pinned spec is marked supported, intentionally deferred, or not applicable in a checked-in coverage matrix;
-- official request/response/event examples deserialize in fixture tests;
+- official request/response/event examples deserialize in fixture tests unless a recorded source defect contradicts the referenced schema, in which case the strict binding policy has an explicit regression test;
 - new unknown tool/event variants survive round-trip inspection as raw payloads.
 
 ### P1b — OpenAI-compatible dialect framework
@@ -674,22 +676,23 @@ Exit criteria:
 - a dialect exposes only the resources and typed settings its conformance suite proves;
 - OpenAI Chat Completions can later be removed without removing Chat-Completions-shaped support for other providers.
 
-### P2 — standalone images, files, and uploads
+### P2 — standalone Images API
 
 - [ ] Standalone Images generation, edits, and variations.
 - [ ] Multipart image inputs, masks, multiple input images where supported, output bytes/base64, quality, format, compression, background, size, and partial-image streaming.
 - [ ] Keep the Responses image-generation tool and standalone Images API as separate typed paths; they have different capabilities and response shapes.
-- [ ] Files upload/list/retrieve/content/delete.
-- [ ] Multipart Uploads create/part/complete/cancel for large files.
-- [ ] Input-file helpers that accept an existing file ID, URL, or base64 content where the API supports those forms.
 - [ ] Size limits and MIME-type validation should be explicit local validation, never silent coercion.
 
 Exit criteria:
 
 - image generation and editing work with both in-memory bytes and file-backed multipart input without loading large outputs twice;
-- file content and generated media can be streamed to a caller-provided sink.
+- generated media can be streamed to a caller-provided sink.
 
-### P3 — audio and voice over HTTP
+### Deferred beyond the current product scope
+
+The following sections are retained only as architectural notes for possible future requests. They are not active roadmap commitments. Do not implement them unless scope is explicitly expanded after Responses and Images are accepted.
+
+### Deferred — audio and voice over HTTP
 
 Build the HTTP audio APIs before Realtime because they exercise binary and multipart foundations with much less protocol complexity.
 
@@ -706,7 +709,7 @@ Exit criteria:
 - transcription can upload large supported files without copying them into a base64 JSON body;
 - audio-specific API errors use the same common error and request metadata model.
 
-### P4 — Realtime voice and multimodal sessions
+### Deferred — Realtime voice and multimodal sessions
 
 Realtime is a separate protocol client, not another REST resource method.
 
@@ -724,7 +727,7 @@ Exit criteria:
 - backpressure, cancellation, interruption, and connection closure behavior are documented and tested;
 - non-Realtime users do not compile WebSocket/WebRTC dependencies.
 
-### P5 — broad data-plane coverage
+### Deferred — broad data-plane coverage
 
 - [ ] Embeddings.
 - [ ] Text/image Moderations.
@@ -736,7 +739,7 @@ Exit criteria:
 
 These should reuse common pagination, binary, multipart, polling, and long-running-operation helpers rather than inventing resource-specific variants.
 
-### P6 — control plane and specialist APIs
+### Deferred — control plane and specialist APIs
 
 - [ ] Fine-tuning jobs, events, checkpoints, permissions, pause/resume/cancel.
 - [ ] Evals, runs, and output items.
@@ -803,7 +806,7 @@ Exact defaults can remain backward-compatible for `0.4.0`, but the invariants ar
 
 - [ ] Rewrite the README around provider-native resource examples, with Responses first.
 - [ ] Publish a support matrix by provider, resource, operation, streaming, and maturity (`stable`, `experimental`, `legacy`).
-- [ ] Document storage/data-retention implications for Responses background mode, Conversations, files, vector stores, images, audio, and Realtime rather than implying all endpoints have the same behavior.
+- [ ] Document storage/data-retention implications for Responses background mode, Conversations, and Images without implying all endpoints have the same behavior.
 - [ ] Document retry and idempotency behavior.
 - [ ] Add a `0.3 -> 0.4` migration guide covering model IDs, client privacy, resource accessors, errors, and streaming.
 - [ ] Make the foundational API cleanup one coherent `0.4.0` breaking release; do not preserve duplicate legacy aliases indefinitely in a pre-1.0 private crate.
@@ -816,11 +819,10 @@ Exact defaults can remain backward-compatible for `0.4.0`, but the invariants ar
 3. **Extensible types:** typed model markers, capability traits, dynamic model/resource IDs, explicit validation, unknown raw payloads, request options escape hatch.
 4. **Compatibility separation:** deprecate native OpenAI Chat Completions, extract private reusable wire pieces, and add resource-scoped `openai_compatible` dialect traits plus initial adapters.
 5. **Responses refactor and parity:** split modules, full request/item/tool/event coverage, lifecycle operations, Conversations.
-6. **Images/files/uploads:** multipart and binary foundations proven in production paths.
-7. **Audio HTTP:** speech, transcription, translation, optional custom voices.
-8. **Realtime:** WebSocket first; WebRTC/SIP only with a clear ownership boundary.
-9. **Broader OpenAI resources:** embeddings, moderation, vector stores, batches, containers, video, fine-tuning, evals, and selected admin APIs.
-10. **Portable capability layer:** only after real downstream usage proves the common semantics.
+6. **Standalone Images:** generation, edits, variations, multipart inputs, binary/base64 outputs, and supported image streaming.
+7. **Portable capability layer:** only after real downstream usage proves the common semantics.
+
+All other OpenAI resource families are deferred unless the product scope is explicitly expanded.
 
 ## Explicit non-goals
 

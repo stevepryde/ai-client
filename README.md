@@ -14,7 +14,8 @@ It also needs a catchy name.
   - Streaming responses (with `stream` feature)
 
 - **OpenAI API**: Support for OpenAI's API
-  - Response generation via the Responses API
+  - Full pinned Responses resource operations and typed protocol coverage
+  - Conversations state and item operations used by Responses
   - Model listing
   - Streaming responses (with `stream` feature)
   - Deprecated legacy chat completions (with `chat-completions` feature)
@@ -32,7 +33,6 @@ together:
 
 ```no_run
 use ai_client::openai::OpenAIClient;
-use ai_client::openai::create_response::OpenAIResponsesInput;
 use ai_client::openai::responses::{Gpt5Mini, ResponseRequest};
 
 # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -40,10 +40,10 @@ let client = OpenAIClient::builder()
     .api_key(std::env::var("OPENAI_API_KEY")?)
     .build()?;
 let request = ResponseRequest::<Gpt5Mini>::builder()
-    .input(OpenAIResponsesInput::Text("Explain typed builders briefly.".into()))
+    .input_text("Explain typed builders briefly.")
     .build();
 
-let response = client.generate_response(request).await?;
+let response = client.responses().create(request).await?;
 println!("response id: {}", response.data().id);
 println!("request id: {:?}", response.metadata().request_id);
 
@@ -56,8 +56,40 @@ println!("status: {:?}", response_body.status);
 Known-model builders expose only settings supported by their model marker. Use
 `DynamicResponseRequest` with an explicit `ValidationMode` for model IDs loaded
 from configuration or released after this crate version. Both paths erase into
-the same private `PreparedResponseRequest` before transport.
+the same private `PreparedResponseRequest` before transport. The older
+`OpenAIClient::generate_response*` methods remain forwarding methods for
+migration; new code should use the borrowed `client.responses()` resource.
 See [`specs/migration-0.4.md`](specs/migration-0.4.md) for migration examples.
+
+Stored responses use validated opaque IDs and encoded path segments:
+
+```no_run
+use ai_client::openai::OpenAIClient;
+use ai_client::openai::responses::ResponseId;
+
+# async fn example() -> Result<(), Box<dyn std::error::Error>> {
+let client = OpenAIClient::builder()
+    .api_key(std::env::var("OPENAI_API_KEY")?)
+    .build()?;
+let id = ResponseId::new("resp_123")?;
+let response = client.responses().retrieve(&id).await?;
+println!("status: {:?}", response.data().status);
+# Ok(())
+# }
+```
+
+### Native OpenAI scope
+
+| Resource | Status |
+| --- | --- |
+| Responses | 7/7 pinned operations, including distinct create/retrieve streaming methods |
+| Conversations | 8/8 pinned operations for conversation and nested item state |
+| Standalone Images | Next planned native API resource |
+| Files, Audio, Realtime, Batches, Videos, administration/control-plane | Deferred and out of the active product scope |
+
+Responses protocol types still represent documented file/audio/tool content and
+stream events where the Responses API itself requires them. That does not imply
+standalone support for those other API resources.
 
 ### Streaming Support
 
@@ -70,7 +102,8 @@ ai_client = { version = "0.1", features = ["stream"] }
 
 Streaming is available via:
 - `GeminiClient::generate_content_streamed()` for Gemini
-- `OpenAIClient::generate_response_streamed()` for OpenAI Responses
+- `OpenAIClient::responses().create_stream()` and `retrieve_stream()` for OpenAI Responses
+- `OpenAIClient::generate_response_streamed()` as a migration forwarding method
 - `OpenAIClient::generate_content_streamed()` for legacy OpenAI chat completions when both `stream` and `chat-completions` are enabled
 
 Streaming methods return `AiResponse<AiStream<_>>`. The outer response exposes
@@ -129,11 +162,12 @@ messages use `ChatMessage::new`; multimodal, tool, and endpoint-specific
 messages use the explicit object-preserving `ChatMessage::from_object` path.
 Downstream dialects can instead define their own associated message type.
 
-## High level plans (if it ever gets there)
+## Product direction
 
-Support various LLMs using a simple interface.
-
-Currently targeting Gemini but it would be cool to add others.
+Provider-native APIs remain full fidelity. OpenAI work is intentionally focused
+on Responses and standalone Images; OpenAI-compatible Chat Completions remains a
+separate typed dialect family rather than a lowest-common-denominator provider
+interface.
 
 ## Minimum Supported Rust Version
 

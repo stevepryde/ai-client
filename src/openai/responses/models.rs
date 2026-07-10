@@ -1,8 +1,8 @@
 use super::{
     ExtendedReasoningEffort, Gpt5ReasoningEffort, Gpt5_1ReasoningEffort,
     Gpt5_5PromptCacheRetention, OpenAIResponsesModel, ProReasoningEffort, PromptCacheRetention,
-    SupportsImageGenerationTool, SupportsPromptCacheKey, SupportsPromptCacheRetention,
-    SupportsReasoning, SupportsSampling, SupportsStructuredOutput,
+    SupportsImageGenerationTool, SupportsItemInput, SupportsPromptCacheKey,
+    SupportsPromptCacheRetention, SupportsReasoning, SupportsSampling, SupportsStructuredOutput,
 };
 
 macro_rules! models {
@@ -180,6 +180,7 @@ impl_trait!(SupportsSampling: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano);
 impl_trait!(SupportsPromptCacheKey: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5_4, Gpt5_4Pro, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro);
 impl_trait!(SupportsStructuredOutput: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5_4, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro);
 impl_trait!(SupportsImageGenerationTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5, Gpt5Nano, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5);
+impl_trait!(SupportsItemInput: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5_4, Gpt5_4Pro, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro);
 
 macro_rules! reasoning {
     ($effort:ty: $($model:ty),+ $(,)?) => { $(
@@ -209,6 +210,7 @@ mod tests {
     fn reasoning<M: SupportsReasoning>() {}
     fn retention<M: SupportsPromptCacheRetention>() {}
     fn image_tool<M: SupportsImageGenerationTool>() {}
+    fn item_input<M: SupportsItemInput>() {}
 
     #[test]
     fn representative_positive_capability_bounds_compile() {
@@ -219,5 +221,7 @@ mod tests {
         retention::<Gpt5_5Pro>();
         image_tool::<Gpt4oMini>();
         image_tool::<Gpt5Nano>();
+        item_input::<Gpt4o>();
+        item_input::<Gpt5_4Pro>();
     }
 }

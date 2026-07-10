@@ -31,6 +31,64 @@
       "total": 8
     }
   },
+  "actual": {
+    "as_of": "2026-07-10",
+    "evidence_level": "test-only",
+    "responses": {
+      "endpoint_implemented": 7,
+      "parity_verified": 7,
+      "total": 7
+    },
+    "conversations": {
+      "endpoint_implemented": 8,
+      "parity_verified": 8,
+      "total": 8
+    }
+  },
+  "protocol_coverage": {
+    "create_response_top_level_fields": 31,
+    "create_response_required_top_level_fields": 0,
+    "input_item_variants": 32,
+    "tool_schema_references": 16,
+    "accepted_tool_discriminator_tags": 18,
+    "tool_choice_forms": 9,
+    "text_format_variants": 3,
+    "output_item_variants": 28,
+    "output_content_variants": 3,
+    "annotation_variants": 4,
+    "stream_event_tags": 53,
+    "unknown_variant_policy": "lossless semantic JSON round-trip; malformed known discriminators are errors"
+  },
+  "pinned_source_defects": [
+    {
+      "schemas": [
+        "ResponseAudioDoneEvent",
+        "ResponseAudioTranscriptDeltaEvent",
+        "ResponseAudioTranscriptDoneEvent"
+      ],
+      "property": "response_id",
+      "defect": "listed as required but absent from properties",
+      "binding": "retained as a required typed field"
+    },
+    {
+      "schemas": ["LocalShellToolCallOutput"],
+      "property": "call_id",
+      "defect": "listed as required but absent from properties",
+      "binding": "retained as a required typed field"
+    },
+    {
+      "schemas": ["MCPApprovalResponse", "MCPApprovalResponseResource"],
+      "property": "request_id",
+      "defect": "listed as required but absent from properties",
+      "binding": "retained as a required typed field"
+    },
+    {
+      "schemas": ["ResponseQueuedEvent.x-oaiMeta.example"],
+      "property": "response",
+      "defect": "example omits required Response fields and encodes timestamps as RFC3339 strings although the referenced Response schema requires Unix numbers",
+      "binding": "strict Response decoding is retained and the contradictory example is deliberately rejected by a regression test"
+    }
+  ],
   "operations": [
     {
       "resource": "responses",
@@ -38,7 +96,8 @@
       "method": "POST",
       "path": "/responses",
       "baseline": "partial",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "responses",
@@ -46,7 +105,8 @@
       "method": "GET",
       "path": "/responses/{response_id}",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "responses",
@@ -54,7 +114,8 @@
       "method": "DELETE",
       "path": "/responses/{response_id}",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "responses",
@@ -62,7 +123,8 @@
       "method": "POST",
       "path": "/responses/{response_id}/cancel",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "responses",
@@ -70,7 +132,8 @@
       "method": "GET",
       "path": "/responses/{response_id}/input_items",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "responses",
@@ -78,7 +141,8 @@
       "method": "POST",
       "path": "/responses/input_tokens",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "responses",
@@ -86,7 +150,8 @@
       "method": "POST",
       "path": "/responses/compact",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "conversations",
@@ -94,7 +159,8 @@
       "method": "POST",
       "path": "/conversations",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "conversations",
@@ -102,7 +168,8 @@
       "method": "GET",
       "path": "/conversations/{conversation_id}",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "conversations",
@@ -110,7 +177,8 @@
       "method": "POST",
       "path": "/conversations/{conversation_id}",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "conversations",
@@ -118,7 +186,8 @@
       "method": "DELETE",
       "path": "/conversations/{conversation_id}",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "conversations",
@@ -126,7 +195,8 @@
       "method": "POST",
       "path": "/conversations/{conversation_id}/items",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "conversations",
@@ -134,7 +204,8 @@
       "method": "GET",
       "path": "/conversations/{conversation_id}/items",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "conversations",
@@ -142,7 +213,8 @@
       "method": "GET",
       "path": "/conversations/{conversation_id}/items/{item_id}",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     },
     {
       "resource": "conversations",
@@ -150,7 +222,8 @@
       "method": "DELETE",
       "path": "/conversations/{conversation_id}/items/{item_id}",
       "baseline": "missing",
-      "target": "parity_verified"
+      "target": "parity_verified",
+      "actual": "parity_verified"
     }
   ]
 }

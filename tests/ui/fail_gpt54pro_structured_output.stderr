@@ -1,18 +1,18 @@
-error[E0599]: the method `json_schema` exists for struct `ResponseRequestBuilder<ai_client::openai::responses::Gpt5_4Pro, HasInput>`, but its trait bounds were not satisfied
-  --> tests/ui/fail_gpt54pro_structured_output.rs:10:10
-   |
- 8 |       let _ = ResponseRequest::<Gpt5_4Pro>::builder()
-   |  _____________-
- 9 | |         .input(OpenAIResponsesInput::Text("hello".into()))
-10 | |         .json_schema(OpenAIJsonSchema {
-   | |         -^^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
-   | |_________|
-   |
-   |
-  ::: src/openai/responses/models.rs
-   |
-   |           pub struct $name;
-   |           ----------------- doesn't satisfy `_: SupportsStructuredOutput`
-   |
-   = note: the following trait bounds were not satisfied:
-           `ai_client::openai::responses::Gpt5_4Pro: ai_client::openai::responses::SupportsStructuredOutput`
+error[E0599]: the method `json_schema` exists for struct `ResponseRequestBuilder<ai_client::openai::responses::Gpt5_4Pro>`, but its trait bounds were not satisfied
+ --> tests/ui/fail_gpt54pro_structured_output.rs:9:10
+  |
+7 |       let _ = ResponseRequest::<Gpt5_4Pro>::builder()
+  |  _____________-
+8 | |         .input_text("hello")
+9 | |         .json_schema(OpenAIJsonSchema {
+  | |         -^^^^^^^^^^^ method cannot be called due to unsatisfied trait bounds
+  | |_________|
+  |
+  |
+ ::: src/openai/responses/models.rs
+  |
+  |           pub struct $name;
+  |           ----------------- doesn't satisfy `_: SupportsStructuredOutput`
+  |
+  = note: the following trait bounds were not satisfied:
+          `ai_client::openai::responses::Gpt5_4Pro: ai_client::openai::responses::SupportsStructuredOutput`
