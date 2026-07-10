@@ -41,8 +41,32 @@ pub struct CountTokensRequest {
     generate_content_request: Option<CountTokensGenerateContentRequest>,
 }
 
+impl CountTokensRequest {
+    /// Count tokens for the supplied content items.
+    pub fn from_contents(contents: Vec<Content>) -> Self {
+        Self {
+            contents: Some(contents),
+            generate_content_request: None,
+        }
+    }
+
+    /// Count tokens for a complete generation request.
+    pub fn from_generate_content(request: CountTokensGenerateContentRequest) -> Self {
+        Self {
+            contents: None,
+            generate_content_request: Some(request),
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CountTokensResponse {
     total_tokens: u64,
+}
+
+impl CountTokensResponse {
+    pub fn total_tokens(&self) -> u64 {
+        self.total_tokens
+    }
 }

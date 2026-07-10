@@ -367,7 +367,7 @@ mod tests {
                 ("x-request-id", "req_openai_wire"),
                 ("x-ratelimit-remaining-requests", "19"),
             ],
-            r#"{"models":[],"nextPageToken":null}"#,
+            r#"{"object":"list","data":[]}"#,
         );
         let (base_url, request) = one_shot_server("proxy/v1", response).await;
         let mut collisions = HeaderMap::new();
@@ -489,7 +489,7 @@ mod tests {
 
     #[tokio::test]
     async fn request_timeout_is_normalized() {
-        let response = json_response("200 OK", &[], r#"{"models":[],"nextPageToken":null}"#);
+        let response = json_response("200 OK", &[], r#"{"object":"list","data":[]}"#);
         let (base_url, server) = delayed_server("v1", response, Duration::from_millis(150)).await;
         let error = OpenAIClient::builder()
             .api_key("test-key".into())

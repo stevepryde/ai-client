@@ -1,6 +1,8 @@
 use std::{collections::HashSet, fmt::Display};
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::Error as _, ser::SerializeMap as _, Deserialize, Deserializer, Serialize, Serializer,
+};
 
 use crate::utils::{base64_decode, base64_encode};
 
@@ -22,17 +24,70 @@ pub enum Role {
     Model,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Part {
     Text(String),
-    #[serde(rename = "inlineData")]
     Blob {
-        #[serde(rename = "mimeType")]
         mime_type: String,
         /// Base64 encoded data.
         data: String,
     },
+}
+
+impl Serialize for Part {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(1))?;
+        match self {
+            Self::Text(text) => map.serialize_entry("text", text)?,
+            Self::Blob { mime_type, data } => map.serialize_entry(
+                "inlineData",
+                &serde_json::json!({"mimeType": mime_type, "data": data}),
+            )?,
+        }
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Part {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let serde_json::Value::Object(object) = value else {
+            return Err(D::Error::custom("Gemini content part must be an object"));
+        };
+
+        let text = object.get("text").and_then(serde_json::Value::as_str);
+        let inline_data = object.get("inlineData");
+        match (text, inline_data) {
+            (Some(text), None) => Ok(Self::Text(text.to_owned())),
+            (None, Some(inline_data)) => {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct InlineData {
+                    mime_type: String,
+                    data: String,
+                }
+
+                let inline_data: InlineData =
+                    serde_json::from_value(inline_data.clone()).map_err(D::Error::custom)?;
+                Ok(Self::Blob {
+                    mime_type: inline_data.mime_type,
+                    data: inline_data.data,
+                })
+            }
+            (Some(_), Some(_)) => Err(D::Error::custom(
+                "Gemini content part cannot contain both text and inlineData",
+            )),
+            (None, None) => Err(D::Error::custom(
+                "Gemini content part must contain text or inlineData",
+            )),
+        }
+    }
 }
 
 impl Part {
@@ -133,18 +188,6 @@ impl std::hash::Hash for SafetySetting {
 pub enum HarmCategory {
     #[serde(rename = "HARM_CATEGORY_UNSPECIFIED")]
     Unspecified,
-    #[serde(rename = "HARM_CATEGORY_DEROGATORY")]
-    Derogatory,
-    #[serde(rename = "HARM_CATEGORY_TOXICITY")]
-    Toxicity,
-    #[serde(rename = "HARM_CATEGORY_VIOLENCE")]
-    Violence,
-    #[serde(rename = "HARM_CATEGORY_SEXUAL")]
-    Sexual,
-    #[serde(rename = "HARM_CATEGORY_MEDICAL")]
-    Medical,
-    #[serde(rename = "HARM_CATEGORY_DANGEROUS")]
-    Dangerous,
     #[serde(rename = "HARM_CATEGORY_HARASSMENT")]
     Harassment,
     #[serde(rename = "HARM_CATEGORY_HATE_SPEECH")]
@@ -160,12 +203,6 @@ impl Display for HarmCategory {
         // Descriptions are taken from the API documentation.
         let desc = match self {
             HarmCategory::Unspecified => "Category is unspecified",
-            HarmCategory::Derogatory => "Negative or harmful comments targeting identity and/or protected attribute",
-            HarmCategory::Toxicity => "Content that is rude, disrespectful, or profane",
-            HarmCategory::Violence => "Describes scenarios depicting violence against an individual or group, or general descriptions of gore",
-            HarmCategory::Sexual => "Contains references to sexual acts or other lewd content",
-            HarmCategory::Medical => "Promotes unchecked medical advice",
-            HarmCategory::Dangerous => "Dangerous content that promotes, facilitates, or encourages harmful acts",
             HarmCategory::Harassment => "Harassment content",
             HarmCategory::HateSpeech => "Hate speech and content",
             HarmCategory::SexuallyExplicit => "Sexually explicit content",
@@ -187,6 +224,8 @@ pub enum HarmBlockThreshold {
     OnlyHigh,
     #[serde(rename = "BLOCK_NONE")]
     None,
+    #[serde(rename = "OFF")]
+    Off,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -488,6 +527,16 @@ mod tests {
                 role: Some(Role::User),
             }
         );
+    }
+
+    #[test]
+    fn text_part_ignores_provider_metadata_fields() {
+        let part: Part = serde_json::from_value(json!({
+            "text": "OK",
+            "thoughtSignature": "opaque-provider-value"
+        }))
+        .unwrap();
+        assert_eq!(part, Part::text("OK"));
     }
 
     #[test]

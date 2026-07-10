@@ -14,3 +14,7 @@ fn main() {
         })
         .build();
 }
+
+trait SupportsStructuredOutput {}
+
+fn _uses_trait_name<T: SupportsStructuredOutput>() {}

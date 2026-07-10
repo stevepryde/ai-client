@@ -307,7 +307,7 @@ mod tests {
             .await;
 
         assert!(wire.await.unwrap().starts_with(
-            "GET /v1/responses/resp%2Fa%3Fb?include=reasoning.encrypted_content&include=message.output_text.logprobs HTTP/1.1\r\n"
+            "GET /v1/responses/resp%2Fa%3Fb?include%5B%5D=reasoning.encrypted_content&include%5B%5D=message.output_text.logprobs HTTP/1.1\r\n"
         ));
     }
 
@@ -360,7 +360,7 @@ mod tests {
         let _ = client.responses().list_input_items(&id, &options).await;
 
         assert!(wire.await.unwrap().starts_with(
-            "GET /v1/responses/resp_123/input_items?limit=100&order=asc&after=item%2Fa&include=file_search_call.results HTTP/1.1\r\n"
+            "GET /v1/responses/resp_123/input_items?limit=100&order=asc&after=item%2Fa&include%5B%5D=file_search_call.results HTTP/1.1\r\n"
         ));
     }
 

@@ -388,7 +388,7 @@ mod tests {
             .build()
             .unwrap()
             .generate_content_streamed(
-                GeminiModel::Gemini2_0Flash,
+                GeminiModel::Gemini3_1FlashLite,
                 GenerateContentRequest {
                     contents: vec![],
                     safety_settings: None,
@@ -409,7 +409,7 @@ mod tests {
         assert!(values.next().await.is_none());
         let request = request.await.unwrap();
         assert!(request.starts_with(
-            "POST /v1beta/models/gemini-2.0-flash:streamGenerateContent HTTP/1.1\r\n"
+            "POST /v1beta/models/gemini-3.1-flash-lite:streamGenerateContent HTTP/1.1\r\n"
         ));
 
         let error_body =
@@ -426,7 +426,7 @@ mod tests {
             .build()
             .unwrap()
             .generate_content_streamed(
-                GeminiModel::Gemini2_0Flash,
+                GeminiModel::Gemini3_1FlashLite,
                 GenerateContentRequest {
                     contents: vec![],
                     safety_settings: None,
@@ -470,7 +470,7 @@ mod tests {
             .build()
             .unwrap()
             .generate_content_streamed(
-                GeminiModel::Gemini2_0Flash,
+                GeminiModel::Gemini3_1FlashLite,
                 GenerateContentRequest {
                     contents: vec![],
                     safety_settings: None,

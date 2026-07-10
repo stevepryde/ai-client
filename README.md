@@ -173,6 +173,30 @@ interface.
 
 The MSRV for this crate is likely to be close to the latest at least for now.
 
+## Live provider tests
+
+The normal test suite never contacts an AI provider. Real-provider coverage has
+two deliberate gates: compile it with the default-off `live-tests` feature, then
+select ignored tests with `--ignored`. This keeps routine `cargo test` and
+`cargo test --all-features` runs token-free.
+
+```bash
+# OpenAI's cheap core operations and tiny prompts
+cargo test --all-features --test live_openai live_openai_core \
+  -- --ignored --test-threads=1
+
+# Gemini's cheap core operations and tiny prompts
+cargo test --all-features --test live_gemini live_gemini_core \
+  -- --ignored --test-threads=1
+```
+
+The model matrices, entitlement-dependent options, provisioned resources, and
+image/hosted-tool tests are separate filters so their cost and prerequisites
+are explicit. See [`tests/LIVE_PROVIDERS.md`](tests/LIVE_PROVIDERS.md) for the
+environment variables, coverage map, and exact commands. An explicitly
+selected live test fails with a clear error when its credential or resource
+environment is missing; it does not silently pass without testing anything.
+
 ## LICENSE
 
 This work is dual-licensed under MIT or Apache 2.0.

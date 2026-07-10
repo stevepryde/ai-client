@@ -8,3 +8,7 @@ fn main() {
         .reasoning(Gpt5ReasoningEffort::High)
         .build();
 }
+
+trait SupportsReasoning {}
+
+fn _uses_trait_name<T: SupportsReasoning>() {}

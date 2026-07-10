@@ -181,7 +181,7 @@ impl ListResponseInputItemsOptions {
 fn include_query(include: &[ResponseInclude]) -> Vec<(String, String)> {
     include
         .iter()
-        .map(|include| ("include".into(), include.as_str().into()))
+        .map(|include| ("include[]".into(), include.as_str().into()))
         .collect()
 }
 
@@ -189,6 +189,7 @@ fn include_query(include: &[ResponseInclude]) -> Vec<(String, String)> {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "stream")]
     #[test]
     fn retrieve_stream_query_owns_stream_mode_and_repeated_includes() {
         let query = RetrieveResponseStreamOptions::new()
@@ -200,8 +201,8 @@ mod tests {
         assert_eq!(
             query,
             vec![
-                ("include".into(), "reasoning.encrypted_content".into()),
-                ("include".into(), "message.output_text.logprobs".into()),
+                ("include[]".into(), "reasoning.encrypted_content".into()),
+                ("include[]".into(), "message.output_text.logprobs".into()),
                 ("stream".into(), "true".into()),
                 ("starting_after".into(), "41".into()),
                 ("include_obfuscation".into(), "false".into()),
@@ -228,7 +229,7 @@ mod tests {
                 ("limit".into(), "100".into()),
                 ("order".into(), "asc".into()),
                 ("after".into(), "item_123".into()),
-                ("include".into(), "file_search_call.results".into()),
+                ("include[]".into(), "file_search_call.results".into()),
             ]
         );
     }

@@ -94,6 +94,7 @@ pub struct OpenAIResponsesCreateResponse {
     pub output: Vec<OpenAIResponseOutputItem>,
     pub reasoning: OpenAIResponsesReasoning,
     pub instructions: Option<String>,
+    #[serde(default)]
     pub output_text: String,
     pub usage: Option<OpenAIResponseUsage>,
     pub prompt_cache_options: Option<OpenAIPromptCacheOptions>,
@@ -136,5 +137,21 @@ mod tests {
             serde_json::json!({"type":"message","id":"missing-rest"})
         )
         .is_err());
+    }
+
+    #[test]
+    fn aggregate_output_text_may_be_omitted_by_the_provider() {
+        let response: OpenAIResponsesCreateResponse = serde_json::from_value(serde_json::json!({
+            "metadata": {}, "top_logprobs": 0, "temperature": 1.0, "top_p": 0.98,
+            "model": "gpt-5.4-mini-2026-03-17", "tools": [], "tool_choice": "auto",
+            "id": "resp_1", "object": "response", "status": "completed", "created_at": 1,
+            "completed_at": 2, "error": null, "incomplete_details": null, "output": [],
+            "reasoning": {"context":"current_turn","effort":"none","mode":"standard","summary":null},
+            "instructions": null, "usage": null, "moderation": null,
+            "parallel_tool_calls": true, "max_output_tokens": 16, "truncation": "disabled",
+            "previous_response_id": null
+        }))
+        .unwrap();
+        assert!(response.output_text.is_empty());
     }
 }

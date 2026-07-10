@@ -135,6 +135,29 @@ pub enum ProReasoningEffort {
     XHigh,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CodexReasoningEffort {
+    Low,
+    Medium,
+    High,
+    XHigh,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Gpt5ProReasoningEffort {
+    High,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Gpt5_6ReasoningEffort {
+    None,
+    Low,
+    Medium,
+    High,
+    XHigh,
+    Max,
+}
+
 macro_rules! effort_conversion {
     ($ty:ty, {$($variant:ident),+ $(,)?}) => {
         impl IntoReasoningEffort for $ty {
@@ -151,3 +174,6 @@ effort_conversion!(Gpt5ReasoningEffort, { Minimal, Low, Medium, High });
 effort_conversion!(Gpt5_1ReasoningEffort, { None, Low, Medium, High });
 effort_conversion!(ExtendedReasoningEffort, { None, Low, Medium, High, XHigh });
 effort_conversion!(ProReasoningEffort, { Medium, High, XHigh });
+effort_conversion!(CodexReasoningEffort, { Low, Medium, High, XHigh });
+effort_conversion!(Gpt5ProReasoningEffort, { High });
+effort_conversion!(Gpt5_6ReasoningEffort, { None, Low, Medium, High, XHigh, Max });

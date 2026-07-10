@@ -25,8 +25,14 @@ pub(crate) fn sanitise_request_params(
         *reasoning_effort = None;
     } else {
         match model {
-            OpenAIModel::Gpt5_1 | OpenAIModel::Gpt5 => match reasoning_effort {
+            OpenAIModel::Gpt5_1
+            | OpenAIModel::Gpt5
+            | OpenAIModel::Gpt5Mini
+            | OpenAIModel::Gpt5Nano => match reasoning_effort {
                 Some(OpenAIReasoningEffort::XHigh) => {
+                    *reasoning_effort = Some(OpenAIReasoningEffort::High)
+                }
+                Some(OpenAIReasoningEffort::Max) => {
                     *reasoning_effort = Some(OpenAIReasoningEffort::High)
                 }
                 Some(OpenAIReasoningEffort::Minimal) => {
@@ -34,15 +40,18 @@ pub(crate) fn sanitise_request_params(
                 }
                 _ => {}
             },
-            OpenAIModel::Gpt5_4
+            OpenAIModel::Gpt5_2
+            | OpenAIModel::Gpt5_4
             | OpenAIModel::Gpt5_4Mini
             | OpenAIModel::Gpt5_4Nano
             | OpenAIModel::Gpt5_5 => {
                 if matches!(reasoning_effort, Some(OpenAIReasoningEffort::Minimal)) {
                     *reasoning_effort = Some(OpenAIReasoningEffort::Low);
+                } else if matches!(reasoning_effort, Some(OpenAIReasoningEffort::Max)) {
+                    *reasoning_effort = Some(OpenAIReasoningEffort::XHigh);
                 }
             }
-            OpenAIModel::Gpt5_4Pro | OpenAIModel::Gpt5_5Pro => {
+            OpenAIModel::Gpt5_2Pro | OpenAIModel::Gpt5_4Pro | OpenAIModel::Gpt5_5Pro => {
                 if matches!(
                     reasoning_effort,
                     Some(
@@ -52,6 +61,31 @@ pub(crate) fn sanitise_request_params(
                     )
                 ) {
                     *reasoning_effort = Some(OpenAIReasoningEffort::Medium);
+                } else if matches!(reasoning_effort, Some(OpenAIReasoningEffort::Max)) {
+                    *reasoning_effort = Some(OpenAIReasoningEffort::XHigh);
+                }
+            }
+            OpenAIModel::Gpt5_3Codex => {
+                if matches!(
+                    reasoning_effort,
+                    Some(OpenAIReasoningEffort::None | OpenAIReasoningEffort::Minimal)
+                ) {
+                    *reasoning_effort = Some(OpenAIReasoningEffort::Low);
+                } else if matches!(reasoning_effort, Some(OpenAIReasoningEffort::Max)) {
+                    *reasoning_effort = Some(OpenAIReasoningEffort::XHigh);
+                }
+            }
+            OpenAIModel::Gpt5Pro => {
+                if reasoning_effort.is_some() {
+                    *reasoning_effort = Some(OpenAIReasoningEffort::High);
+                }
+            }
+            OpenAIModel::Gpt5_6
+            | OpenAIModel::Gpt5_6Sol
+            | OpenAIModel::Gpt5_6Terra
+            | OpenAIModel::Gpt5_6Luna => {
+                if matches!(reasoning_effort, Some(OpenAIReasoningEffort::Minimal)) {
+                    *reasoning_effort = Some(OpenAIReasoningEffort::Low);
                 }
             }
             _ => {}
@@ -73,6 +107,7 @@ pub enum OpenAIReasoningEffort {
     Medium,
     High,
     XHigh,
+    Max,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
