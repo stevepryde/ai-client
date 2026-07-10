@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "retrieved_at": "2026-07-10",
+  "source_url": "https://app.stainless.com/api/spec/documented/openai/openapi.documented.yml",
+  "official_pointer": "https://github.com/openai/openai-openapi",
+  "file": "openapi.documented.yml",
+  "openapi_version": "3.1.0",
+  "api_info_version": "2.3.0",
+  "byte_length": 3520114,
+  "etag": "20b52b62cb42863a87ce612936087e89f9ccfd79",
+  "sha256": "ffb722eb86b2382e760f840d53d5888f4086fd1aa4aaade8ad522ad69e3e6afe",
+  "verification_script": "verify-source.sh"
+}

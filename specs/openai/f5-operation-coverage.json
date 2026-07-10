@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "source": "source.json",
+  "scope": "F5 Responses refactor and parity",
+  "coverage_definition": {
+    "endpoint_implemented": "The crate exposes a callable operation for the pinned route and method.",
+    "parity_verified": "The operation's request, response, errors, pagination or streaming behavior, and unknown-field preservation are verified against the pinned OpenAPI document."
+  },
+  "baseline": {
+    "as_of": "2026-07-10",
+    "responses": {
+      "endpoint_implemented": 1,
+      "parity_verified": 0,
+      "total": 7
+    },
+    "conversations": {
+      "endpoint_implemented": 0,
+      "parity_verified": 0,
+      "total": 8
+    }
+  },
+  "target": {
+    "responses": {
+      "endpoint_implemented": 7,
+      "parity_verified": 7,
+      "total": 7
+    },
+    "conversations": {
+      "endpoint_implemented": 8,
+      "parity_verified": 8,
+      "total": 8
+    }
+  },
+  "operations": [
+    {
+      "resource": "responses",
+      "operation_id": "createResponse",
+      "method": "POST",
+      "path": "/responses",
+      "baseline": "partial",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "responses",
+      "operation_id": "getResponse",
+      "method": "GET",
+      "path": "/responses/{response_id}",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "responses",
+      "operation_id": "deleteResponse",
+      "method": "DELETE",
+      "path": "/responses/{response_id}",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "responses",
+      "operation_id": "cancelResponse",
+      "method": "POST",
+      "path": "/responses/{response_id}/cancel",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "responses",
+      "operation_id": "listInputItems",
+      "method": "GET",
+      "path": "/responses/{response_id}/input_items",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "responses",
+      "operation_id": "Getinputtokencounts",
+      "method": "POST",
+      "path": "/responses/input_tokens",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "responses",
+      "operation_id": "Compactconversation",
+      "method": "POST",
+      "path": "/responses/compact",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "conversations",
+      "operation_id": "createConversation",
+      "method": "POST",
+      "path": "/conversations",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "conversations",
+      "operation_id": "getConversation",
+      "method": "GET",
+      "path": "/conversations/{conversation_id}",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "conversations",
+      "operation_id": "updateConversation",
+      "method": "POST",
+      "path": "/conversations/{conversation_id}",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "conversations",
+      "operation_id": "deleteConversation",
+      "method": "DELETE",
+      "path": "/conversations/{conversation_id}",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "conversations",
+      "operation_id": "createConversationItems",
+      "method": "POST",
+      "path": "/conversations/{conversation_id}/items",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "conversations",
+      "operation_id": "listConversationItems",
+      "method": "GET",
+      "path": "/conversations/{conversation_id}/items",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "conversations",
+      "operation_id": "getConversationItem",
+      "method": "GET",
+      "path": "/conversations/{conversation_id}/items/{item_id}",
+      "baseline": "missing",
+      "target": "parity_verified"
+    },
+    {
+      "resource": "conversations",
+      "operation_id": "deleteConversationItem",
+      "method": "DELETE",
+      "path": "/conversations/{conversation_id}/items/{item_id}",
+      "baseline": "missing",
+      "target": "parity_verified"
+    }
+  ]
+}

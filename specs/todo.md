@@ -27,7 +27,7 @@ Stack contract: [`stack.md`](stack.md)
 | F2 — streaming transport | accepted | Crate-owned SSE and internal byte streams, handshake errors/metadata, wire stream invariants, adversarial framing and JSON-array tests | **test-only**: 42 unit/integration tests, one doctest, full stream feature matrix/dependency-tree checks, and independent review; no live-provider smoke |
 | F3 — typed model requests | accepted | OpenAI Responses known-model markers, resource-scoped capabilities, input-typestate builders, non-generic wire erasure, and explicit dynamic requests | **test-only**: 49 unit/integration tests, four compile-pass and ten compile-fail fixtures, one doctest, full feature matrix, and independent review; no live-provider smoke |
 | F4 — compatibility separation | accepted | Native Chat Completions deprecation and typed `openai_compatible` dialect framework | **test-only**: 58 unit/integration tests, four compatibility compile-pass and twelve compile-fail fixtures, doctests, full feature matrix, and independent review; no live-provider smoke |
-| F5 — Responses refactor and parity | pending | Focused resource modules, operation parity, raw unknown variants, Conversations | Coverage matrix and official fixtures |
+| F5 — Responses refactor and parity | in progress | Focused resource modules, operation parity, raw unknown variants, Conversations | Pinned OpenAPI source, 7/7 Responses and 8/8 Conversations operations, official fixtures, and lossless unknown-variant tests |
 
 ### F1 architecture contract
 
@@ -74,6 +74,19 @@ Stack contract: [`stack.md`](stack.md)
 - `extra_body` is collision-checked against typed wire fields; collisions are build errors and no typed value is silently replaced or discarded.
 - Non-streaming and streaming compatibility calls use `AiResponse` handshake metadata, structured provider errors, crate-owned stream errors, automatic wire stream mode, and raw-preserving response/SSE wrappers.
 - F4a includes mock conformance and compile-pass/fail fixtures for `CustomDialect`. Named dialect markers, Responses-shaped compatibility, Images/Audio compatibility, and portable cross-provider requests remain deferred.
+
+### F5 architecture contract
+
+- F5 is checked against the exact OpenAI OpenAPI document and digest recorded in `openai/source.json`; the pinned document is a coverage and drift oracle, not generated public Rust API.
+- Responses is a borrowed resource handle with seven operations: create, retrieve, delete, cancel, list input items, count input tokens, and compact. Streaming create/retrieve are distinct Rust methods because their return types differ.
+- Conversations is a borrowed resource handle with create/retrieve/update/delete plus nested item create/retrieve/delete/list operations. It reuses Responses item types and does not introduce deprecated Assistants or Threads types.
+- The current official create schema permits omitted input. F5 removes F3's hard `MissingInput` gate so conversation-linked, continuation, and reusable-prompt requests remain representable; typed model markers and all model capability bounds remain intact.
+- Responses protocol types are split into focused request, input, output, tool, event, and operation modules. Typed builders still erase into a private non-generic wire request before transport owns streaming mode.
+- Every known tagged input/output/content/annotation/event discriminator is decoded as its documented shape. A known discriminator with malformed fields is an error; an unknown discriminator preserves the entire semantic JSON object in a redacted raw wrapper and serializes losslessly.
+- Create covers all 31 pinned top-level fields, 16 tool definitions, nine tool-choice forms, three text formats, and the pinned input/output unions. All 53 pinned Responses stream event tags are represented, including Responses audio events even though standalone Audio remains deferred.
+- Opaque validated IDs and encoded path segments prevent identifier injection. Query/pagination types encode cursors, order, include selectors, stream offsets, and obfuscation explicitly.
+- Existing `OpenAIClient::generate_response*` methods remain migration forwarding methods while `client.responses()` and `client.conversations()` become canonical.
+- F5 acceptance requires the checked-in 7/7 and 8/8 operation matrix, pinned-source verification, exact mock verb/path/query/body tests, official-example fixtures, unknown round-trip and malformed-known rejection, compile fixtures, strict clippy, and the full feature matrix.
 
 ## Goal
 
