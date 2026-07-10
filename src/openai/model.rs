@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::prelude::AiError;
+use crate::{error::ConfigErrorKind, prelude::AiError};
 
 #[non_exhaustive]
 #[derive(
@@ -144,7 +144,10 @@ impl FromStr for OpenAIModel {
             "gpt-5.4-nano" => Ok(OpenAIModel::Gpt5_4Nano),
             "gpt-5.5" => Ok(OpenAIModel::Gpt5_5),
             "gpt-5.5-pro" => Ok(OpenAIModel::Gpt5_5Pro),
-            _ => Err(AiError::InvalidModel),
+            _ => Err(AiError::Config {
+                kind: ConfigErrorKind::InvalidModel,
+                message: "unknown OpenAI model".to_string(),
+            }),
         }
     }
 }

@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::prelude::AiError;
+use crate::{error::ConfigErrorKind, prelude::AiError};
 
 #[non_exhaustive]
 #[derive(
@@ -82,7 +82,10 @@ impl FromStr for GeminiModel {
             "gemini-3-pro-image-preview" => Ok(GeminiModel::Gemini3ProImage),
             "imagen-4.0-generate-001" => Ok(GeminiModel::Imagen4),
             "imagen-4.0-fast-generate-001" => Ok(GeminiModel::Imagen4Fast),
-            _ => Err(AiError::InvalidModel),
+            _ => Err(AiError::Config {
+                kind: ConfigErrorKind::InvalidModel,
+                message: "unknown Gemini model".to_string(),
+            }),
         }
     }
 }

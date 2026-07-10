@@ -19,6 +19,37 @@ It also needs a catchy name.
   - Streaming responses (with `stream` feature)
   - Legacy chat completions (with `chat-completions` feature)
 
+## OpenAI Responses
+
+OpenAI Responses is the primary API for new OpenAI integrations. Successful
+calls return `AiResponse<T>`, which keeps the provider body and HTTP metadata
+together:
+
+```no_run
+use ai_client::openai::{OpenAIClient, OpenAIModel};
+use ai_client::openai::create_response::{
+    OpenAIResponsesCreateRequest, OpenAIResponsesInput,
+};
+
+# async fn example() -> Result<(), Box<dyn std::error::Error>> {
+let client = OpenAIClient::builder()
+    .api_key(std::env::var("OPENAI_API_KEY")?)
+    .build()?;
+let request = OpenAIResponsesCreateRequest::builder()
+    .model(OpenAIModel::Gpt5Mini)
+    .input(OpenAIResponsesInput::Text("Explain typed builders briefly.".into()))
+    .build();
+
+let response = client.generate_response(request).await?;
+println!("response id: {}", response.data().id);
+println!("request id: {:?}", response.metadata().request_id);
+
+let response_body = response.into_inner();
+println!("status: {:?}", response_body.status);
+# Ok(())
+# }
+```
+
 ### Streaming Support
 
 To enable streaming support, add the `stream` feature to your `Cargo.toml`:

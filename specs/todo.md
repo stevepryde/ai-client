@@ -1,10 +1,44 @@
 # ai-client architecture roadmap
 
-Status: proposed
+Status: in progress
 
 Last reviewed: 2026-07-10
 
 Target release for the first breaking slice: `0.4.0`
+
+Stack contract: [`stack.md`](stack.md)
+
+## Current execution plan
+
+### Task contract
+
+- Advance this roadmap through the largest coherent unblocked units, beginning with the highest-risk foundation.
+- Keep provider-native APIs full fidelity; no universal lowest-common-denominator request.
+- Make typed model markers and capability-bounded builders the default known-model path, erasing into private non-generic wire requests.
+- Keep dynamic model IDs explicit and runtime-validated.
+- Keep OpenAI Responses primary, deprecate native OpenAI Chat Completions, and preserve Chat-Completions-shaped interoperability in a separate typed `openai_compatible` dialect family.
+- Do not release or tag an implementation unit unless it intentionally completes the release contract in `AGENTS.md`.
+
+### Roadmap units
+
+| Unit | Status | Scope | Evidence required |
+| --- | --- | --- | --- |
+| F1 — safe shared JSON transport | accepted | Private client state, same-origin relative paths, shared non-streaming transport, typed errors/metadata, TLS wiring, encoded query/path data | **test-only**: 34 unit/integration tests, one doctest, full feature matrix, TLS/stream dependency-tree checks, and independent review; no live-provider smoke |
+| F2 — streaming transport | pending | Crate-owned SSE/byte streams, handshake errors, wire stream invariants, adversarial framing tests | Chunk-boundary fixtures and stream handshake tests |
+| F3 — typed model requests | pending | Known-model markers, resource-scoped capabilities, typestate builders, non-generic wire erasure, explicit dynamic requests | Compile-pass/fail fixtures plus serialization tests |
+| F4 — compatibility separation | pending | Native Chat Completions deprecation and typed `openai_compatible` dialect framework | Per-dialect conformance fixtures and migration examples |
+| F5 — Responses refactor and parity | pending | Focused resource modules, operation parity, raw unknown variants, Conversations | Coverage matrix and official fixtures |
+
+### F1 architecture contract
+
+- Existing non-streaming OpenAI and Gemini calls share one private JSON transport; provider modules own auth and error-envelope semantics.
+- Public non-streaming methods return `AiResponse<T>` so metadata is concurrency-safe and never hidden as mutable client state.
+- `ResponseMetadata` is crate-owned and exposes request ID, retry information, and rate-limit headers without exposing the raw response or header map.
+- API errors contain provider, stable operation name, status, normalized provider fields, request ID, retry information, and a bounded raw fallback. Decode errors never log or display response bodies.
+- Configured base URLs preserve an optional path prefix and reject credentials, query strings, and fragments. Authenticated operations accept only validated relative paths and separately encoded dynamic path segments/query values.
+- F1 does not accept an externally supplied reqwest client: its redirect policy cannot be inspected or overridden, so a client configured to follow cross-origin redirects could forward provider-specific credentials such as Gemini's `x-goog-api-key`. Revisit injection behind a transport seam that can preserve the same-origin invariant.
+- `--no-default-features` enables no TLS backend; native-only and rustls-only builds remain distinct. Enabling both is supported if reqwest supports the combination.
+- Retries, SSE/byte streams, multipart, resource handles, model markers, compatibility dialects, and portable provider traits are deferred to their own units.
 
 ## Goal
 
@@ -497,21 +531,23 @@ The module layout above is intentionally compatible with that later split.
 
 ### Client safety and configuration
 
-- [ ] Make API keys and reqwest clients private.
-- [ ] Remove public arbitrary-URL `get` and `post` methods. Internal resource calls must use relative paths resolved against the configured provider origin.
-- [ ] If a raw public request API is needed, require a validated relative path and keep auth same-origin. Make cross-origin requests an explicitly unauthenticated API.
-- [ ] Add configurable base URL, organization/project headers, user agent, default headers, connect timeout, request timeout, and optional externally supplied `reqwest::Client`.
+- [x] Make API keys and reqwest clients private.
+- [x] Remove public arbitrary-URL `get` and `post` methods. Internal resource calls must use relative paths resolved against the configured provider origin.
+- [x] If a raw public request API is needed, require a validated relative path and keep auth same-origin. Make cross-origin requests an explicitly unauthenticated API. No raw API is exposed by F1.
+- [x] Add configurable base URL, organization/project headers, user agent, default headers, connect timeout, and request timeout.
+- [ ] Add an externally supplied HTTP-client seam only when the crate can still enforce same-origin redirect handling for provider-specific credential headers.
 - [ ] Support environment-key loading as an opt-in convenience, not hidden global state.
-- [ ] Ensure `Debug`, errors, and traces never contain credentials, authorization headers, uploaded file contents, prompts, or model output by default.
-- [ ] Include crate name and version in the default user agent.
+- [x] Ensure `Debug`, errors, and traces never contain credentials, authorization headers, uploaded file contents, prompts, or model output by default.
+- [x] Include crate name and version in the default user agent.
 
 ### Errors, retries, and response metadata
 
-- [ ] Replace the current status/string API error with a structured error containing provider, endpoint, status, provider error type/code/param/message, request ID, retry-after, and a safely bounded raw payload.
-- [ ] Distinguish configuration, transport, timeout, HTTP API, decode, stream framing, and protocol errors.
-- [ ] Decode documented provider error envelopes before falling back to raw text.
-- [ ] Do not log full successful or failed response bodies automatically on decode failure.
-- [ ] Return or expose response metadata, especially request IDs and rate-limit headers.
+- [x] Replace the current status/string API error with a structured error containing provider, endpoint, status, provider error type/code/param/message, request ID, retry-after, and a safely bounded raw payload.
+- [x] Distinguish configuration, transport, timeout, HTTP API, and JSON decode errors.
+- [ ] Add crate-owned stream framing and protocol errors in F2.
+- [x] Decode documented provider error envelopes before falling back to raw text.
+- [x] Do not log full successful or failed response bodies automatically on decode failure.
+- [x] Return or expose response metadata, especially request IDs and rate-limit headers.
 - [ ] Retry only retryable statuses and transport failures, honor `Retry-After`, use bounded exponential backoff with jitter, and never automatically retry a non-idempotent operation unless an idempotency key or endpoint guarantee makes it safe.
 - [ ] Make retry policy configurable and observable.
 
@@ -532,10 +568,10 @@ The official documented OpenAPI file currently contains roughly 178 path entries
 
 ### P0 — foundation and current API correctness
 
-- [ ] Extract the shared transport and typed error model.
-- [ ] Lock credentials and raw transport behind private fields and same-origin paths.
-- [ ] Fix TLS feature wiring so `rustls-tls` and `native-tls` map to reqwest correctly and `--no-default-features` enables neither.
-- [ ] Replace query string concatenation with encoded query serialization.
+- [x] Extract the shared transport and typed error model for existing JSON operations.
+- [x] Lock credentials and raw transport behind private fields and same-origin paths.
+- [x] Fix TLS feature wiring so `rustls-tls` and `native-tls` map to reqwest correctly and `--no-default-features` enables neither.
+- [x] Replace query string concatenation with encoded query serialization.
 - [ ] Replace the SSE parser and add adversarial chunk-boundary tests.
 - [ ] Make streaming entry points set their wire mode automatically.
 - [ ] Introduce typed known-model markers, capability-bounded builders, and an explicit dynamic model/validation path.
