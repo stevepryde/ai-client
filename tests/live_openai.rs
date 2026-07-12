@@ -284,6 +284,26 @@ async fn live_openai_option_matrix_accepts_prompt_cache_settings() {
                 .build(),
         ),
         (
+            "gpt-5.2/in_memory",
+            ResponseRequest::<Gpt5_2>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .prompt_cache_key("ai-client-live-gpt-5.2-in-memory")
+                .prompt_cache_retention(PromptCacheRetention::InMemory)
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.2/24h",
+            ResponseRequest::<Gpt5_2>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .prompt_cache_key("ai-client-live-gpt-5.2-24h")
+                .prompt_cache_retention(PromptCacheRetention::Hours24)
+                .store(false)
+                .build(),
+        ),
+        (
             "gpt-5.4/in_memory",
             ResponseRequest::<Gpt5_4>::builder()
                 .input_text("OK")

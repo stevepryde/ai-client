@@ -1,5 +1,6 @@
 use ai_client::openai::responses::{
-    Gpt5_1, Gpt5_4, OpenAIFunctionTool, ResponseRequest, Temperature, TopP,
+    Gpt5_1, Gpt5_2, Gpt5_4, OpenAIFunctionTool, PromptCacheRetention, ResponseRequest,
+    Temperature, TopP,
 };
 
 fn function() -> OpenAIFunctionTool {
@@ -22,5 +23,11 @@ fn main() {
         .temperature(Temperature::new(0.0).unwrap())
         .top_p(TopP::new(0.9).unwrap())
         .tool(function())
+        .build();
+    let _ = ResponseRequest::<Gpt5_2>::builder()
+        .reasoning_none()
+        .temperature(Temperature::new(0.0).unwrap())
+        .top_p(TopP::new(0.9).unwrap())
+        .prompt_cache_retention(PromptCacheRetention::Hours24)
         .build();
 }

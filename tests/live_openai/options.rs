@@ -27,8 +27,8 @@ fn schema() -> OpenAIJsonSchema {
 }
 
 #[tokio::test]
-#[ignore = "live provider: tiny GPT-5.1/GPT-5.4 calls verify sampling is accepted only in no-reasoning typestates"]
-async fn live_openai_gpt51_and_gpt54_sampling_in_no_reasoning_modes() {
+#[ignore = "live provider: tiny GPT-5.1/GPT-5.2/GPT-5.4 calls verify sampling is accepted only in no-reasoning typestates"]
+async fn live_openai_gpt51_gpt52_and_gpt54_sampling_in_no_reasoning_modes() {
     let client = client();
     let requests = [
         (
@@ -45,6 +45,28 @@ async fn live_openai_gpt51_and_gpt54_sampling_in_no_reasoning_modes() {
         (
             "gpt-5.1/explicit-none",
             ResponseRequest::<Gpt5_1>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .reasoning_none()
+                .temperature(Temperature::new(0.0).unwrap())
+                .top_p(TopP::new(0.9).unwrap())
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.2/default-none",
+            ResponseRequest::<Gpt5_2>::builder()
+                .input_text("OK")
+                .max_output_tokens(16)
+                .temperature(Temperature::new(0.0).unwrap())
+                .top_p(TopP::new(0.9).unwrap())
+                .top_logprobs(TopLogprobs::new(1).unwrap())
+                .store(false)
+                .build(),
+        ),
+        (
+            "gpt-5.2/explicit-none",
+            ResponseRequest::<Gpt5_2>::builder()
                 .input_text("OK")
                 .max_output_tokens(16)
                 .reasoning_none()

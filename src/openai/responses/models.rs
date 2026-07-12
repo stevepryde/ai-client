@@ -102,9 +102,9 @@ pub const PREVIEW_RESPONSE_MODEL_IDS: &[&str] =
     &[Gpt5_6::ID, Gpt5_6Sol::ID, Gpt5_6Terra::ID, Gpt5_6Luna::ID];
 
 // Capability evidence reviewed 2026-07-10 from the official model pages and
-// verified against the live Responses API for GPT-5.1 and GPT-5.4. Sampling on
-// those two models is accepted only when reasoning is omitted/default-none or
-// explicitly set to none; the request typestate encodes that dependency.
+// verified against the live Responses API for GPT-5.1, GPT-5.2, and GPT-5.4.
+// Sampling on those models is accepted only when reasoning is omitted/default-
+// none or explicitly set to none; the request typestate encodes that dependency.
 
 macro_rules! impl_trait {
     ($trait:ident: $($model:ty),+ $(,)?) => { $(impl $trait for $model {})+ };
@@ -116,9 +116,9 @@ macro_rules! sampling_from {
     )+ };
 }
 
-sampling_from!(DefaultMode: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
-sampling_from!(NoReasoningMode: Gpt5_1, Gpt5_4);
-sampling_from!(SamplingMode: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
+sampling_from!(DefaultMode: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_2, Gpt5_4);
+sampling_from!(NoReasoningMode: Gpt5_1, Gpt5_2, Gpt5_4);
+sampling_from!(SamplingMode: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_2, Gpt5_4);
 impl_trait!(SupportsPromptCacheKey: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5Pro, Gpt5_2, Gpt5_2Pro, Gpt5_3Codex, Gpt5_4, Gpt5_4Pro, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
 impl_trait!(SupportsStructuredOutput: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5Pro, Gpt5_2, Gpt5_3Codex, Gpt5_4, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
 impl_trait!(SupportsImageGenerationTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5, Gpt5Nano, Gpt5_4, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
@@ -164,7 +164,7 @@ macro_rules! retention {
     )+ };
 }
 
-retention!(PromptCacheRetention: Gpt4_1, Gpt5_1, Gpt5, Gpt5_4);
+retention!(PromptCacheRetention: Gpt4_1, Gpt5_1, Gpt5, Gpt5_2, Gpt5_4);
 retention!(Gpt5_5PromptCacheRetention: Gpt5_5, Gpt5_5Pro);
 
 #[cfg(test)]
@@ -181,6 +181,7 @@ mod tests {
     fn representative_positive_capability_bounds_compile() {
         sampling::<Gpt4o>();
         sampling::<Gpt5_1>();
+        sampling::<Gpt5_2>();
         sampling::<Gpt5_4>();
         reasoning::<Gpt5>();
         reasoning::<Gpt5Pro>();
@@ -190,6 +191,7 @@ mod tests {
         reasoning::<Gpt5_4Pro>();
         reasoning::<Gpt5_6Luna>();
         retention::<Gpt4_1>();
+        retention::<Gpt5_2>();
         retention::<Gpt5_5Pro>();
         image_tool::<Gpt4oMini>();
         image_tool::<Gpt5Nano>();

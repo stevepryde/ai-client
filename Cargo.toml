@@ -6,7 +6,7 @@ homepage = "https://github.com/stevepryde/ai-client"
 license = "MIT OR Apache-2.0"
 name = "ai_client"
 repository = "https://github.com/stevepryde/ai-client"
-version = "0.5.0"
+version = "0.5.1"
 
 keywords = ["ai", "llm", "gemini", "client"]
 readme = "README.md"
