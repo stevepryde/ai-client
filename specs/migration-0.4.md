@@ -2,6 +2,10 @@
 
 Status: draft
 
+> This document describes the historical 0.4 model-bound builder. For the
+> current endpoint model-config API, continue with
+> [`migration-0.6.md`](migration-0.6.md).
+
 ## OpenAI Responses requests
 
 Direct construction of `OpenAIResponsesCreateRequest` is replaced by a typed
@@ -16,7 +20,7 @@ let request = ResponseRequest::<Gpt5>::builder()
     .input_text("Hello")
     .reasoning(Gpt5ReasoningEffort::High)
     .build();
-let response = client.responses().create(request).await?;
+let response = client.responses().create_prepared(request).await?;
 ```
 
 For a model ID selected at runtime, use the explicit dynamic path. Validation
@@ -38,7 +42,7 @@ let request = DynamicResponseRequest::builder(model)
 for warning in request.warnings() {
     // Surface or record the explicit validation warning.
 }
-let response = client.responses().create(request).await?;
+let response = client.responses().create_prepared(request).await?;
 ```
 
 `OpenAIModel` remains available for model retrieval and the default-off legacy
@@ -47,7 +51,7 @@ Chat Completions API. It is no longer the native Responses request model type.
 ## Streaming
 
 The same `PreparedResponseRequest` can be passed to
-`client.responses().create_stream(...)`. The resource owns the wire `stream`
+`client.responses().create_prepared_stream(...)`. The resource owns the wire `stream`
 switch; callers do not set it on the request. The old `generate_response*`
 methods remain forwarding methods during migration.
 

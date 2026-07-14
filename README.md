@@ -33,17 +33,20 @@ together:
 
 ```no_run
 use ai_client::openai::OpenAIClient;
-use ai_client::openai::responses::{Gpt5Mini, ResponseRequest};
+use ai_client::openai::responses::{CreateResponseRequest, Gpt5Mini};
 
 # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 let client = OpenAIClient::builder()
     .api_key(std::env::var("OPENAI_API_KEY")?)
     .build()?;
-let request = ResponseRequest::<Gpt5Mini>::builder()
+let request = CreateResponseRequest::builder()
     .input_text("Explain typed builders briefly.")
     .build();
 
-let response = client.responses().create(request).await?;
+let response = client
+    .responses()
+    .create(Gpt5Mini::config(), request)
+    .await?;
 println!("response id: {}", response.data().id);
 println!("request id: {:?}", response.metadata().request_id);
 
@@ -53,16 +56,46 @@ println!("status: {:?}", response_body.status);
 # }
 ```
 
-Known-model builders expose only settings supported by their model marker and
-track mutually exclusive reasoning/sampling modes in the builder type. Runtime
-model selection should match to a typed model marker before constructing the
-request; there is deliberately no string-model Responses builder. Custom and
-fine-tuned models can define their own `OpenAIResponsesModel` marker and opt in
-to capabilities explicitly. Requests erase into the same private
-`PreparedResponseRequest` before transport. The older
-`OpenAIClient::generate_response*` methods remain forwarding methods for
-migration; new code should use the borrowed `client.responses()` resource.
-See [`specs/migration-0.5.md`](specs/migration-0.5.md) for migration examples.
+Model-independent request content and model-specific configuration are separate.
+Known-model configs expose only settings supported by their marker and track
+mutually exclusive reasoning/sampling modes in the config type. The endpoint
+checks that the selected model supports every capability used by the request,
+including item input, structured output, cache keys, tool controls, and each
+tool type.
+
+This keeps runtime model routing small without moving failures to production:
+
+```rust,ignore
+let request = CreateResponseRequest::builder()
+    .instructions(instructions)
+    .input_items(input)
+    .json_schema(schema)
+    .build();
+
+let model: Box<dyn ResponseModelFor<_>> = match selected_model {
+    AppModel::Fast => Box::new(Gpt5_4Nano::config().reasoning_none()),
+    AppModel::Strong => Box::new(
+        Gpt5_2::config().reasoning(ExtendedReasoningEffort::High),
+    ),
+};
+
+let response = client.responses().create(model, request).await?;
+```
+
+The request is constructed once. `ResponseModelFor<Request>` is an object-safe
+erasure boundary, so a `Box` or `Arc` can hold configs with different model and
+reasoning/sampling typestates. Each coercion is available only if that model
+supports the request's schema, input, cache, tools, and tool controls. This also
+makes conditional configuration straightforward: select one of several valid
+typed configs into the trait object instead of mutating a builder across
+typestate changes. Static callers can pass a concrete config directly with no
+allocation, and reusable callers can pass `&config` or `Arc::clone(&config)`.
+
+There is deliberately no string-model native Responses builder. Custom and
+fine-tuned models can define an `OpenAIResponsesModel` marker, opt into
+capabilities, and start with `ResponseModelConfig::<MyModel>::new()`.
+See [`specs/migration-0.6.md`](specs/migration-0.6.md) for a focused migration
+guide.
 
 Stored responses use validated opaque IDs and encoded path segments:
 
@@ -100,12 +133,12 @@ To enable streaming support, add the `stream` feature to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ai_client = { version = "0.1", features = ["stream"] }
+ai_client = { version = "0.6", features = ["stream"] }
 ```
 
 Streaming is available via:
 - `GeminiClient::generate_content_streamed()` for Gemini
-- `OpenAIClient::responses().create_stream()` and `retrieve_stream()` for OpenAI Responses
+- `OpenAIClient::responses().create_stream(model, request)` and `retrieve_stream()` for OpenAI Responses
 - `OpenAIClient::generate_response_streamed()` as a migration forwarding method
 - `OpenAIClient::generate_content_streamed()` for legacy OpenAI chat completions when both `stream` and `chat-completions` are enabled
 
@@ -124,7 +157,7 @@ app that intentionally needs the native legacy API:
 
 ```toml
 [dependencies]
-ai_client = { version = "0.1", features = ["chat-completions"] }
+ai_client = { version = "0.6", features = ["chat-completions"] }
 ```
 
 For OpenAI-shaped third-party endpoints, use the separate

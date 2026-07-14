@@ -1,0 +1,88 @@
+error[E0277]: the trait bound `ai_client::openai::responses::Gpt5_1: SupportsTool<OpenAIImageGenerationTool>` is not satisfied
+  --> tests/ui/fail_endpoint_unsupported_image_tool.rs:11:39
+   |
+11 |     let _ = client.responses().create(Gpt5_1::config(), request).await;
+   |                                ------ ^^^^^^^^^^^^^^^^ the trait `SupportsTool<OpenAIImageGenerationTool>` is not implemented for `ai_client::openai::responses::Gpt5_1`
+   |                                |
+   |                                required by a bound introduced by this call
+   |
+help: the trait `SupportsTool<OpenAIImageGenerationTool>` is not implemented for `ai_client::openai::responses::Gpt5_1`
+      but trait `SupportsTool<OpenAIFunctionTool>` is implemented for it
+  --> src/openai/responses/models.rs
+   |
+   |         impl SupportsTool<$tool> for $model {}
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+   | tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
+   | ------------------------------------------------------------------------------------------- in this macro invocation
+   = help: for that trait implementation, expected `OpenAIFunctionTool`, found `OpenAIImageGenerationTool`
+   = note: required for `ToolList<OpenAIImageGenerationTool, NoTools>` to implement `responses::create_request::compatibility::ToolListCompatible<ai_client::openai::responses::Gpt5_1>`
+   = note: required for `CreateResponseRequest<CommonInput, PlainTextOutput, ToolList<OpenAIImageGenerationTool, NoTools>>` to implement `ai_client::openai::responses::CompatibleResponseRequest<ai_client::openai::responses::Gpt5_1>`
+   = note: required for `ResponseModelConfig<ai_client::openai::responses::Gpt5_1>` to implement `ResponseModelFor<CreateResponseRequest<CommonInput, PlainTextOutput, ToolList<OpenAIImageGenerationTool, NoTools>>>`
+note: required by a bound in `ResponsesResource::<'a>::create`
+  --> src/openai/responses/resource.rs
+   |
+   |     pub async fn create<Model, Request>(
+   |                  ------ required by a bound in this associated function
+...
+   |         Model: ResponseModelFor<Request>,
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ResponsesResource::<'a>::create`
+   = note: this error originates in the macro `tool` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `ai_client::openai::responses::Gpt5_1: SupportsTool<OpenAIImageGenerationTool>` is not satisfied
+  --> tests/ui/fail_endpoint_unsupported_image_tool.rs:11:13
+   |
+11 |     let _ = client.responses().create(Gpt5_1::config(), request).await;
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `SupportsTool<OpenAIImageGenerationTool>` is not implemented for `ai_client::openai::responses::Gpt5_1`
+   |
+help: the trait `SupportsTool<OpenAIImageGenerationTool>` is not implemented for `ai_client::openai::responses::Gpt5_1`
+      but trait `SupportsTool<OpenAIFunctionTool>` is implemented for it
+  --> src/openai/responses/models.rs
+   |
+   |         impl SupportsTool<$tool> for $model {}
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+   | tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
+   | ------------------------------------------------------------------------------------------- in this macro invocation
+   = help: for that trait implementation, expected `OpenAIFunctionTool`, found `OpenAIImageGenerationTool`
+   = note: required for `ToolList<OpenAIImageGenerationTool, NoTools>` to implement `responses::create_request::compatibility::ToolListCompatible<ai_client::openai::responses::Gpt5_1>`
+   = note: required for `CreateResponseRequest<CommonInput, PlainTextOutput, ToolList<OpenAIImageGenerationTool, NoTools>>` to implement `ai_client::openai::responses::CompatibleResponseRequest<ai_client::openai::responses::Gpt5_1>`
+   = note: required for `ResponseModelConfig<ai_client::openai::responses::Gpt5_1>` to implement `ResponseModelFor<CreateResponseRequest<CommonInput, PlainTextOutput, ToolList<OpenAIImageGenerationTool, NoTools>>>`
+note: required by a bound in `ResponsesResource::<'a>::create`
+  --> src/openai/responses/resource.rs
+   |
+   |     pub async fn create<Model, Request>(
+   |                  ------ required by a bound in this associated function
+...
+   |         Model: ResponseModelFor<Request>,
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ResponsesResource::<'a>::create`
+   = note: this error originates in the macro `tool` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `ai_client::openai::responses::Gpt5_1: SupportsTool<OpenAIImageGenerationTool>` is not satisfied
+  --> tests/ui/fail_endpoint_unsupported_image_tool.rs:11:66
+   |
+11 |     let _ = client.responses().create(Gpt5_1::config(), request).await;
+   |                                                                  ^^^^^ the trait `SupportsTool<OpenAIImageGenerationTool>` is not implemented for `ai_client::openai::responses::Gpt5_1`
+   |
+help: the trait `SupportsTool<OpenAIImageGenerationTool>` is not implemented for `ai_client::openai::responses::Gpt5_1`
+      but trait `SupportsTool<OpenAIFunctionTool>` is implemented for it
+  --> src/openai/responses/models.rs
+   |
+   |         impl SupportsTool<$tool> for $model {}
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+   | tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
+   | ------------------------------------------------------------------------------------------- in this macro invocation
+   = help: for that trait implementation, expected `OpenAIFunctionTool`, found `OpenAIImageGenerationTool`
+   = note: required for `ToolList<OpenAIImageGenerationTool, NoTools>` to implement `responses::create_request::compatibility::ToolListCompatible<ai_client::openai::responses::Gpt5_1>`
+   = note: required for `CreateResponseRequest<CommonInput, PlainTextOutput, ToolList<OpenAIImageGenerationTool, NoTools>>` to implement `ai_client::openai::responses::CompatibleResponseRequest<ai_client::openai::responses::Gpt5_1>`
+   = note: required for `ResponseModelConfig<ai_client::openai::responses::Gpt5_1>` to implement `ResponseModelFor<CreateResponseRequest<CommonInput, PlainTextOutput, ToolList<OpenAIImageGenerationTool, NoTools>>>`
+note: required by a bound in `ResponsesResource::<'a>::create`
+  --> src/openai/responses/resource.rs
+   |
+   |     pub async fn create<Model, Request>(
+   |                  ------ required by a bound in this associated function
+...
+   |         Model: ResponseModelFor<Request>,
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ResponsesResource::<'a>::create`
+   = note: this error originates in the macro `tool` (in Nightly builds, run with -Z macro-backtrace for more info)

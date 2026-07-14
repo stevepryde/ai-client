@@ -88,11 +88,22 @@ pub trait SupportsPromptCacheRetention: OpenAIResponsesModel {
     type Retention: IntoPromptCacheRetention;
 }
 pub trait SupportsStructuredOutput: OpenAIResponsesModel {}
-pub trait SupportsImageGenerationTool: OpenAIResponsesModel {}
 pub trait IntoResponsesTool {
     fn into_responses_tool(self) -> crate::openai::responses::OpenAIResponsesTool;
 }
 pub trait SupportsTool<T: IntoResponsesTool>: OpenAIResponsesModel {}
+/// Compatibility name for models that support the Responses image tool.
+///
+/// The concrete `SupportsTool<OpenAIImageGenerationTool>` implementation is
+/// the single source of truth used by both request APIs.
+pub trait SupportsImageGenerationTool:
+    SupportsTool<crate::openai::responses::OpenAIImageGenerationTool>
+{
+}
+impl<M> SupportsImageGenerationTool for M where
+    M: SupportsTool<crate::openai::responses::OpenAIImageGenerationTool>
+{
+}
 pub trait SupportsTools: OpenAIResponsesModel {}
 /// Opt-in gate for known-model builders that accept the heterogeneous
 /// Responses item-input union. Downstream model markers must opt in explicitly;

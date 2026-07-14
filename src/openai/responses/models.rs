@@ -4,9 +4,9 @@ use super::{
     NoReasoningMode, OpenAIApplyPatchTool, OpenAICodeInterpreterTool, OpenAIComputerTool,
     OpenAIFileSearchTool, OpenAIFunctionShellTool, OpenAIFunctionTool, OpenAIImageGenerationTool,
     OpenAIMcpTool, OpenAIResponsesModel, OpenAIToolSearchTool, OpenAIWebSearchTool,
-    ProReasoningEffort, PromptCacheRetention, SamplingMode, SupportsImageGenerationTool,
-    SupportsItemInput, SupportsNoReasoning, SupportsPromptCacheKey, SupportsPromptCacheRetention,
-    SupportsReasoning, SupportsSamplingFrom, SupportsStructuredOutput, SupportsTool, SupportsTools,
+    ProReasoningEffort, PromptCacheRetention, SamplingMode, SupportsItemInput, SupportsNoReasoning,
+    SupportsPromptCacheKey, SupportsPromptCacheRetention, SupportsReasoning, SupportsSamplingFrom,
+    SupportsStructuredOutput, SupportsTool, SupportsTools,
 };
 
 macro_rules! models {
@@ -14,6 +14,12 @@ macro_rules! models {
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
         pub struct $name;
         impl OpenAIResponsesModel for $name { const ID: &'static str = $id; }
+        impl $name {
+            /// Start a compile-time checked configuration for this model.
+            pub fn config() -> super::ResponseModelConfig<Self> {
+                super::ResponseModelConfig::new()
+            }
+        }
     )+ };
 }
 
@@ -121,7 +127,6 @@ sampling_from!(NoReasoningMode: Gpt5_1, Gpt5_2, Gpt5_4);
 sampling_from!(SamplingMode: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_2, Gpt5_4);
 impl_trait!(SupportsPromptCacheKey: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5Pro, Gpt5_2, Gpt5_2Pro, Gpt5_3Codex, Gpt5_4, Gpt5_4Pro, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
 impl_trait!(SupportsStructuredOutput: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5Pro, Gpt5_2, Gpt5_3Codex, Gpt5_4, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
-impl_trait!(SupportsImageGenerationTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5, Gpt5Nano, Gpt5_4, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
 impl_trait!(SupportsItemInput: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5, Gpt5Mini, Gpt5Nano, Gpt5Pro, Gpt5_2, Gpt5_2Pro, Gpt5_3Codex, Gpt5_4, Gpt5_4Pro, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_5Pro, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
 
 macro_rules! tool {
@@ -137,7 +142,7 @@ tool!(OpenAIComputerTool: Gpt5_4);
 tool!(OpenAIWebSearchTool: Gpt5_4);
 tool!(OpenAIMcpTool: Gpt5_4);
 tool!(OpenAICodeInterpreterTool: Gpt5_4);
-tool!(OpenAIImageGenerationTool: Gpt5_4);
+tool!(OpenAIImageGenerationTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5, Gpt5Nano, Gpt5_4, Gpt5_4Mini, Gpt5_4Nano, Gpt5_5, Gpt5_6, Gpt5_6Sol, Gpt5_6Terra, Gpt5_6Luna);
 tool!(OpenAIFunctionShellTool: Gpt5_4);
 tool!(OpenAIToolSearchTool: Gpt5_4);
 tool!(OpenAIApplyPatchTool: Gpt5_4);
@@ -174,7 +179,7 @@ mod tests {
     fn sampling<M: SupportsSamplingFrom<DefaultMode>>() {}
     fn reasoning<M: SupportsReasoning>() {}
     fn retention<M: SupportsPromptCacheRetention>() {}
-    fn image_tool<M: SupportsImageGenerationTool>() {}
+    fn image_tool<M: crate::openai::responses::SupportsImageGenerationTool>() {}
     fn item_input<M: SupportsItemInput>() {}
 
     #[test]

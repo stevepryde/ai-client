@@ -1,0 +1,88 @@
+error[E0277]: the trait bound `ai_client::openai::responses::Gpt5_4Pro: ai_client::openai::responses::SupportsStructuredOutput` is not satisfied
+  --> tests/ui/fail_endpoint_unsupported_structured_output.rs:18:17
+   |
+18 |         .create(Gpt5_4Pro::config(), request)
+   |          ------ ^^^^^^^^^^^^^^^^^^^ the trait `ai_client::openai::responses::SupportsStructuredOutput` is not implemented for `ai_client::openai::responses::Gpt5_4Pro`
+   |          |
+   |          required by a bound introduced by this call
+   |
+   = help: the following other types implement trait `ai_client::openai::responses::SupportsStructuredOutput`:
+             ai_client::openai::responses::Gpt4_1
+             ai_client::openai::responses::Gpt4_1Mini
+             ai_client::openai::responses::Gpt4_1Nano
+             ai_client::openai::responses::Gpt4o
+             ai_client::openai::responses::Gpt4oMini
+             ai_client::openai::responses::Gpt5
+             ai_client::openai::responses::Gpt5Mini
+             ai_client::openai::responses::Gpt5Nano
+           and $N others
+   = note: required for `StructuredOutput` to implement `responses::create_request::compatibility::OutputCompatible<ai_client::openai::responses::Gpt5_4Pro>`
+   = note: required for `CreateResponseRequest<CommonInput, StructuredOutput>` to implement `ai_client::openai::responses::CompatibleResponseRequest<ai_client::openai::responses::Gpt5_4Pro>`
+   = note: required for `ResponseModelConfig<ai_client::openai::responses::Gpt5_4Pro>` to implement `ResponseModelFor<CreateResponseRequest<CommonInput, StructuredOutput>>`
+note: required by a bound in `ResponsesResource::<'a>::create`
+  --> src/openai/responses/resource.rs
+   |
+   |     pub async fn create<Model, Request>(
+   |                  ------ required by a bound in this associated function
+...
+   |         Model: ResponseModelFor<Request>,
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ResponsesResource::<'a>::create`
+
+error[E0277]: the trait bound `ai_client::openai::responses::Gpt5_4Pro: ai_client::openai::responses::SupportsStructuredOutput` is not satisfied
+  --> tests/ui/fail_endpoint_unsupported_structured_output.rs:16:13
+   |
+16 |       let _ = client
+   |  _____________^
+17 | |         .responses()
+18 | |         .create(Gpt5_4Pro::config(), request)
+   | |_____________________________________________^ the trait `ai_client::openai::responses::SupportsStructuredOutput` is not implemented for `ai_client::openai::responses::Gpt5_4Pro`
+   |
+   = help: the following other types implement trait `ai_client::openai::responses::SupportsStructuredOutput`:
+             ai_client::openai::responses::Gpt4_1
+             ai_client::openai::responses::Gpt4_1Mini
+             ai_client::openai::responses::Gpt4_1Nano
+             ai_client::openai::responses::Gpt4o
+             ai_client::openai::responses::Gpt4oMini
+             ai_client::openai::responses::Gpt5
+             ai_client::openai::responses::Gpt5Mini
+             ai_client::openai::responses::Gpt5Nano
+           and $N others
+   = note: required for `StructuredOutput` to implement `responses::create_request::compatibility::OutputCompatible<ai_client::openai::responses::Gpt5_4Pro>`
+   = note: required for `CreateResponseRequest<CommonInput, StructuredOutput>` to implement `ai_client::openai::responses::CompatibleResponseRequest<ai_client::openai::responses::Gpt5_4Pro>`
+   = note: required for `ResponseModelConfig<ai_client::openai::responses::Gpt5_4Pro>` to implement `ResponseModelFor<CreateResponseRequest<CommonInput, StructuredOutput>>`
+note: required by a bound in `ResponsesResource::<'a>::create`
+  --> src/openai/responses/resource.rs
+   |
+   |     pub async fn create<Model, Request>(
+   |                  ------ required by a bound in this associated function
+...
+   |         Model: ResponseModelFor<Request>,
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ResponsesResource::<'a>::create`
+
+error[E0277]: the trait bound `ai_client::openai::responses::Gpt5_4Pro: ai_client::openai::responses::SupportsStructuredOutput` is not satisfied
+  --> tests/ui/fail_endpoint_unsupported_structured_output.rs:19:10
+   |
+19 |         .await;
+   |          ^^^^^ the trait `ai_client::openai::responses::SupportsStructuredOutput` is not implemented for `ai_client::openai::responses::Gpt5_4Pro`
+   |
+   = help: the following other types implement trait `ai_client::openai::responses::SupportsStructuredOutput`:
+             ai_client::openai::responses::Gpt4_1
+             ai_client::openai::responses::Gpt4_1Mini
+             ai_client::openai::responses::Gpt4_1Nano
+             ai_client::openai::responses::Gpt4o
+             ai_client::openai::responses::Gpt4oMini
+             ai_client::openai::responses::Gpt5
+             ai_client::openai::responses::Gpt5Mini
+             ai_client::openai::responses::Gpt5Nano
+           and $N others
+   = note: required for `StructuredOutput` to implement `responses::create_request::compatibility::OutputCompatible<ai_client::openai::responses::Gpt5_4Pro>`
+   = note: required for `CreateResponseRequest<CommonInput, StructuredOutput>` to implement `ai_client::openai::responses::CompatibleResponseRequest<ai_client::openai::responses::Gpt5_4Pro>`
+   = note: required for `ResponseModelConfig<ai_client::openai::responses::Gpt5_4Pro>` to implement `ResponseModelFor<CreateResponseRequest<CommonInput, StructuredOutput>>`
+note: required by a bound in `ResponsesResource::<'a>::create`
+  --> src/openai/responses/resource.rs
+   |
+   |     pub async fn create<Model, Request>(
+   |                  ------ required by a bound in this associated function
+...
+   |         Model: ResponseModelFor<Request>,
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ResponsesResource::<'a>::create`

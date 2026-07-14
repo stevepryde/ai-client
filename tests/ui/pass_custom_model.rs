@@ -1,6 +1,7 @@
 use ai_client::openai::{
     responses::{
-        IntoReasoningEffort, OpenAIResponsesModel, ResponseRequest, SupportsReasoning,
+        IntoReasoningEffort, OpenAIResponsesModel, ResponseModelConfig, ResponseRequest,
+        SupportsReasoning,
     },
     OpenAIReasoningEffort,
 };
@@ -19,4 +20,6 @@ fn main() {
         .input_text("hello")
         .reasoning(LocalEffort::High)
         .build();
+    let config = ResponseModelConfig::<FineTuned>::new().reasoning(LocalEffort::High);
+    let _ = config.clone();
 }

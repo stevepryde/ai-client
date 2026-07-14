@@ -101,7 +101,7 @@ async fn live_openai_gpt51_gpt52_and_gpt54_sampling_in_no_reasoning_modes() {
     for (label, request) in requests {
         client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .unwrap_or_else(|error| panic!("sampling combination {label} failed: {error}"));
     }
@@ -157,7 +157,7 @@ async fn live_openai_gpt51_and_gpt54_documented_core_features() {
     for (model, request) in requests {
         client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .unwrap_or_else(|error| panic!("documented core features failed for {model}: {error}"));
     }
@@ -192,7 +192,7 @@ async fn live_openai_gpt51_and_gpt54_function_calling() {
     for (model, request) in requests {
         let response = client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .unwrap_or_else(|error| panic!("function calling failed for {model}: {error}"))
             .into_inner();
@@ -245,7 +245,7 @@ async fn live_openai_gpt51_and_gpt54_image_input() {
     for (model, request) in requests {
         client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .unwrap_or_else(|error| panic!("documented image input failed for {model}: {error}"));
     }
@@ -357,7 +357,7 @@ async fn live_openai_gpt54_documented_tool_definitions() {
     for (name, request) in requests {
         client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .unwrap_or_else(|error| panic!("GPT-5.4 tool {name} was rejected: {error:?}"));
     }
@@ -374,7 +374,7 @@ async fn live_openai_resource_tool_file_search() {
     .unwrap();
     client()
         .responses()
-        .create(
+        .create_prepared(
             ResponseRequest::<Gpt5_4>::builder()
                 .input_text("OK")
                 .max_output_tokens(16)
@@ -399,7 +399,7 @@ async fn live_openai_resource_tool_mcp() {
     .unwrap();
     client()
         .responses()
-        .create(
+        .create_prepared(
             ResponseRequest::<Gpt5_4>::builder()
                 .input_text("OK")
                 .max_output_tokens(16)
@@ -447,7 +447,7 @@ async fn live_openai_expensive_hosted_tool_matrix() {
     for request in cases {
         client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .expect("GPT-5.4 hosted tool invocation should succeed");
     }

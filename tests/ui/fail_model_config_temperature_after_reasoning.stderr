@@ -1,0 +1,18 @@
+error[E0599]: the method `temperature` exists for struct `ResponseModelConfig<ai_client::openai::responses::Gpt5_2, ReasoningMode>`, but its trait bounds were not satisfied
+ --> tests/ui/fail_model_config_temperature_after_reasoning.rs:8:10
+  |
+6 |       let _ = Gpt5_2::config()
+  |  _____________-
+7 | |         .reasoning(ExtendedReasoningEffort::High)
+8 | |         .temperature(Temperature::new(0.5).unwrap());
+  | |         -^^^^^^^^^^^ private field, not a method
+  | |_________|
+  |
+  |
+ ::: src/openai/responses/models.rs
+  |
+  |           pub struct $name;
+  |           ----------------- doesn't satisfy `_: SupportsSamplingFrom<ReasoningMode>`
+  |
+  = note: the following trait bounds were not satisfied:
+          `ai_client::openai::responses::Gpt5_2: SupportsSamplingFrom<ReasoningMode>`

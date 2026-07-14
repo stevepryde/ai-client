@@ -2,9 +2,9 @@
 
 Status: in progress
 
-Last reviewed: 2026-07-10
+Last reviewed: 2026-07-14
 
-Target release for the first breaking slice: `0.4.0`
+Target release for the next breaking slice: `0.6.0`
 
 Stack contract: [`stack.md`](stack.md)
 
@@ -14,8 +14,8 @@ Stack contract: [`stack.md`](stack.md)
 
 - Advance this roadmap through the largest coherent unblocked units, beginning with the highest-risk foundation.
 - Keep provider-native APIs full fidelity; no universal lowest-common-denominator request.
-- Make typed model markers and capability-bounded builders the default known-model path, erasing into private non-generic wire requests.
-- Require typed native OpenAI Responses model markers; runtime selection uses a closed application enum and typed match arms.
+- Separate model-independent request content from typed model configuration. Pass both to the Responses endpoint and erase them into a private wire request only inside the resource call.
+- Require typed native OpenAI Responses model markers; runtime selection uses a closed application enum plus checked `ResponseModelFor<Request>` trait-object erasure or short endpoint match arms over one reusable request.
 - Keep OpenAI Responses primary, deprecate native OpenAI Chat Completions, and preserve Chat-Completions-shaped interoperability in a separate typed `openai_compatible` dialect family.
 - Do not release or tag an implementation unit unless it intentionally completes the release contract in `AGENTS.md`.
 
@@ -29,6 +29,7 @@ Stack contract: [`stack.md`](stack.md)
 | F4 — compatibility separation | accepted | Native Chat Completions deprecation and typed `openai_compatible` dialect framework | **test-only**: 58 unit/integration tests, four compatibility compile-pass and twelve compile-fail fixtures, doctests, full feature matrix, and independent review; no live-provider smoke |
 | F5 — Responses refactor and parity | accepted | Focused resource modules, operation parity, lossless unknown variants, typed closed schemas, and Conversations | **test-only**: pinned-source verification, 7/7 Responses and 8/8 Conversations operations, 116 runtime tests, five Responses compile-pass and nine compile-fail fixtures, compatibility fixtures, doctests, strict clippy, full feature matrix, and independent review; no live-provider smoke |
 | F6 — standalone Images API | pending | Generation, edits, variations, multipart inputs, binary/base64 outputs, and supported partial-image streaming | Pinned Images coverage matrix, exact mock multipart/binary/stream fixtures, and opt-in live smoke |
+| F7 — endpoint model configs | implemented | Model-independent `CreateResponseRequest`, typed reusable `ResponseModelConfig`, endpoint compatibility checking, and concise runtime routing | Soulfire-shaped compile-pass fixture, endpoint compile-fail fixtures, exact mock wire tests, strict clippy, and full feature matrix |
 
 ### F1 architecture contract
 
@@ -89,6 +90,17 @@ Stack contract: [`stack.md`](stack.md)
 - Existing `OpenAIClient::generate_response*` methods remain migration forwarding methods while `client.responses()` and `client.conversations()` become canonical.
 - F5 acceptance requires the checked-in 7/7 and 8/8 operation matrix, pinned-source verification, exact mock verb/path/query/body tests, official-example fixtures except where a recorded source defect contradicts its referenced schema, unknown round-trip and malformed-known rejection, compile fixtures, strict clippy, and the full feature matrix.
 
+### F7 architecture correction
+
+- F7 supersedes F3's model-bound request-builder ergonomics. The F3 builder remains a low-level migration path until the `0.6.0` cleanup, but it is no longer the recommended application API.
+- `CreateResponseRequest` owns model-independent request content and endpoint options. It is built once and can be moved into any typed runtime-selection match arm.
+- `ResponseModelConfig<M, Mode>` owns model-specific settings such as reasoning, sampling, and prompt-cache retention. Known markers expose `GptX::config()`; custom markers use `ResponseModelConfig::<M>::new()`.
+- `ResponsesResource::create(model, request)` and its streaming counterpart combine both values into the single private wire request immediately before transport.
+- Request typestate records only capabilities that must be checked against the eventual model: heterogeneous item input, structured output, cache keys, concrete tool types, and tool controls. Model config typestate continues to prevent invalid reasoning/sampling combinations and invalid setting value types.
+- Runtime model selection remains a closed application enum. The application matches typed configs into a checked `ResponseModelFor<Request>` trait object, or uses short endpoint match arms when dynamic dispatch is unnecessary. Erasing them into an unchecked string-backed config is rejected because it would move model/request compatibility failures back to production.
+- `ResponseModelFor<Request>` is the safe dynamic-dispatch seam. It is object-safe and implemented only for configs whose model satisfies the request typestate, so `Box`/`Arc<dyn ResponseModelFor<_>>` can erase different models or reasoning/sampling modes without erasing capability checks. Concrete configs and borrowed configs remain the zero-allocation path.
+- Standalone Images remains F6 and uses its own request/config types. Responses image-generation tools continue through the Responses capability system; the two API surfaces must not be conflated.
+
 ## Goal
 
 Grow `ai-client` into a provider-extensible Rust client that:
@@ -107,7 +119,7 @@ This roadmap deliberately prioritizes the transport and type-system foundations 
 2. **Share transport mechanics, not provider semantics.** Authentication, JSON, multipart, binary bodies, SSE, pagination, retries, and error decoding belong in a common internal core.
 3. **Organize OpenAI by resource.** The current product boundary is `client.responses()` and `client.images()`; already-completed Conversations support remains as the durable state companion to Responses.
 4. **Deprecate OpenAI's native Chat Completions surface.** Keep it default-off for migration, direct new OpenAI work to Responses, and move reusable compatibility support into a separate typed `openai_compatible` provider family. Do not implement the deprecated Assistants/Threads API unless a concrete downstream migration requirement appears.
-5. **Keep native Responses model selection typed.** Runtime selection uses closed application enums and typed match arms; custom aliases use explicit marker types. Unknown response variants still retain their raw payload.
+5. **Keep native Responses model selection typed and separate from request content.** Runtime selection uses closed application enums and either checked trait-object erasure or short typed endpoint match arms over one reusable request; custom aliases use explicit marker types. Unknown response variants still retain their raw payload.
 6. **Do not create a workspace yet.** Keep one crate while the providers share the same light dependency set. Reassess a split only when a third substantial provider or another deliberately approved heavy subsystem lands.
 7. **Treat the official OpenAPI document as a coverage oracle, not as the public Rust API.** Pin it for drift checks and selective code generation, while keeping reviewed, idiomatic public types.
 8. **Unification must be additive, never restrictive.** Full-fidelity native requests remain canonical. Static generic code uses associated provider types; runtime switching uses an explicitly portable request plus typed per-backend defaults or a closed enum of native requests.
@@ -220,8 +232,8 @@ The public OpenAI shape should read like the API:
 ```rust,ignore
 let client = OpenAIClient::builder().api_key_from_env()?.build()?;
 
-let response = client.responses().create(request).await?;
-let mut events = client.responses().create_stream(request).await?;
+let response = client.responses().create(model, request).await?;
+let mut events = client.responses().create_stream(model, request).await?;
 let image = client.images().generate(request).await?;
 let transcript = client.audio().transcriptions().create(request).await?;
 ```
@@ -344,7 +356,7 @@ There are three distinct use cases. They should not be forced through one reques
 This is the canonical API and always exposes every supported provider feature:
 
 ```rust,ignore
-openai.responses().create(OpenAIResponseRequest { /* all OpenAI fields */ }).await?;
+openai.responses().create(model_config, CreateResponseRequest { /* all OpenAI fields */ }).await?;
 gemini.models().generate_content(GeminiGenerateContentRequest { /* all Gemini fields */ }).await?;
 ```
 
@@ -448,26 +460,31 @@ impl SupportsReasoning for Gpt5 {
 }
 ```
 
-Requests and builders are generic over the model marker. Capability-specific methods exist only when their bounds are satisfied:
+Model configs are generic over the model marker. Capability-specific config
+methods exist only when their bounds are satisfied, while request capabilities
+are checked when the model and request meet at the endpoint:
 
 ```rust,ignore
-pub struct ResponseRequest<M: OpenAIResponsesModel> {
+pub struct ResponseModelConfig<M: OpenAIResponsesModel, Mode> {
     model: PhantomData<M>,
-    input: OpenAIResponsesInput,
-    // fields common to every Responses model
+    mode: PhantomData<Mode>,
+    // model-specific fields
 }
 
-impl<M: SupportsReasoning> ResponseRequestBuilder<M> {
+impl<M: SupportsReasoning> ResponseModelConfig<M, DefaultMode> {
     pub fn reasoning(mut self, effort: M::Effort) -> Self {
         // ...
     }
 }
 
-impl<M: SupportsTemperature> ResponseRequestBuilder<M> {
+impl<M: SupportsTemperature, S> ResponseModelConfig<M, S> {
     pub fn temperature(mut self, temperature: Temperature) -> Self {
         // ...
     }
 }
+
+let request = CreateResponseRequest::builder().input_items(input).build();
+let response = client.responses().create(Gpt5::config(), request).await?;
 ```
 
 This provides two useful levels of compile-time checking:
@@ -488,42 +505,46 @@ Only encode relatively stable request-shape rules in the type system: whether a 
 - Do not seal model/capability traits unless an invariant truly cannot be upheld by downstream implementations.
 - Document that compile-time support reflects the crate's pinned provider specification; live APIs can still change, so compile-time checks complement rather than replace wire fixtures and opt-in live tests.
 
-#### Implementation shape: generic facade, non-generic wire core
+#### Implementation shape: split generic facade, non-generic wire core
 
-The typed API must not duplicate request serialization or transport logic for every model. Keep the generics in the caller-facing builder and erase them when construction is complete:
+The typed API must not duplicate request serialization or transport logic for every model. Keep model generics in `ResponseModelConfig`, keep request-capability markers in `CreateResponseRequest`, and erase both only when the endpoint combines them:
 
 ```rust,ignore
-pub struct ResponseRequestBuilder<M, InputState> {
-    wire: OpenAIResponsesWireRequest,
+pub struct ResponseModelConfig<M, Mode> {
+    options: ModelOptions,
     _model: PhantomData<fn() -> M>,
-    _input: PhantomData<InputState>,
+    _mode: PhantomData<Mode>,
 }
 
-impl<M: SupportsReasoning, S> ResponseRequestBuilder<M, S> {
+impl<M: SupportsReasoning> ResponseModelConfig<M, DefaultMode> {
     pub fn reasoning(mut self, effort: M::Effort) -> Self {
-        self.wire.reasoning = Some(effort.into_wire());
+        self.options.reasoning = Some(effort.into_wire());
         self
     }
 }
 
-impl<M: OpenAIResponsesModel> ResponseRequestBuilder<M, HasInput> {
-    pub fn build(mut self) -> PreparedResponseRequest {
-        self.wire.model = M::ID.into();
-        PreparedResponseRequest(self.wire)
+impl ResponsesResource<'_> {
+    pub async fn create<M, R>(&self, model: ResponseModelConfig<M>, request: R)
+    where
+        M: OpenAIResponsesModel,
+        R: CompatibleResponseRequest<M>,
+    {
+        let wire = request.prepare(model);
+        self.transport.create(wire).await
     }
 }
 ```
 
-`PhantomData` model/state markers are zero-sized. Only the small builder methods are monomorphized. `PreparedResponseRequest`, `OpenAIResponsesWireRequest`, response decoding, streaming, retries, and HTTP transport remain non-generic and have exactly one implementation.
+`PhantomData` model/state markers are zero-sized. Only small config, request, and endpoint facade methods are monomorphized. `PreparedResponseRequest`, `OpenAIResponsesWireRequest`, response decoding, streaming, retries, and HTTP transport remain non-generic and have exactly one implementation.
 
 Implementation rules:
 
 - Keep the wire request private so callers cannot bypass builder invariants after model-type erasure.
 - Use typestate only for genuinely required construction state such as input; do not encode every optional field into the builder type.
-- Put model capability bounds on builder methods, not on the shared serializer or transport.
+- Put model-option bounds on config methods and model/request compatibility bounds on the endpoint facade, never on the shared serializer or transport.
 - Convert model-specific associated setting types into private wire enums at the method boundary.
 - Do not parameterize response types by model unless the response shape actually differs in a way callers must know statically.
-- Let the dynamic builder reuse the same private wire core, adding explicit runtime validation before it produces `PreparedResponseRequest`.
+- Do not add a dynamic native builder. Runtime model switching uses a closed application enum and typed endpoint arms over the same request.
 - Prefer a small handwritten builder if the builder-derive library makes conditional capability methods or diagnostics awkward.
 - Generate repetitive marker and capability implementations from a reviewed, checked-in model manifest if the table becomes large; keep the resulting public types stable and source-controlled.
 

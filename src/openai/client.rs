@@ -293,7 +293,7 @@ impl OpenAIClient {
         &self,
         request: PreparedResponseRequest,
     ) -> AiResult<AiResponse<OpenAIResponsesCreateResponse>> {
-        self.responses().create(request).await
+        self.responses().create_prepared(request).await
     }
 
     #[cfg(feature = "stream")]
@@ -304,7 +304,7 @@ impl OpenAIClient {
         &self,
         request: PreparedResponseRequest,
     ) -> AiResult<AiResponse<AiStream<SseJsonEvent<OpenAIResponsesStreamEvent>>>> {
-        self.responses().create_stream(request).await
+        self.responses().create_prepared_stream(request).await
     }
 }
 

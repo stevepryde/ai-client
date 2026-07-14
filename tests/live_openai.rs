@@ -79,7 +79,7 @@ async fn live_openai_model_matrix_streams_with_representative_families() {
     for (model, request) in requests {
         let events = client
             .responses()
-            .create_stream(request)
+            .create_prepared_stream(request)
             .await
             .unwrap_or_else(|error| panic!("Responses create_stream failed for {model}: {error}"))
             .into_inner()
@@ -152,7 +152,7 @@ async fn live_openai_core_create_options_are_accepted_together() {
 
     let response = client()
         .responses()
-        .create(request)
+        .create_prepared(request)
         .await
         .expect("OpenAI should accept the complete inexpensive create option set")
         .into_inner();
@@ -252,7 +252,7 @@ async fn live_openai_option_matrix_accepts_every_reasoning_effort() {
     ] {
         client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .unwrap_or_else(|error| panic!("reasoning option {label} failed: {error}"));
     }
@@ -326,7 +326,7 @@ async fn live_openai_option_matrix_accepts_prompt_cache_settings() {
     ] {
         client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .unwrap_or_else(|error| panic!("cache option {label} failed: {error}"));
     }
@@ -353,7 +353,7 @@ async fn live_openai_core_response_resource_lifecycle() {
 
     let first = client
         .responses()
-        .create(
+        .create_prepared(
             ResponseRequest::<Gpt5_4Mini>::builder()
                 .input_text("Reply with only ONE.")
                 .max_output_tokens(32)
@@ -391,7 +391,7 @@ async fn live_openai_core_response_resource_lifecycle() {
 
     let second = client
         .responses()
-        .create(
+        .create_prepared(
             ResponseRequest::<Gpt5_4Mini>::builder()
                 .input_text("Reply with only TWO.")
                 .previous_response_id(first_id.clone())
@@ -507,7 +507,7 @@ async fn live_openai_core_create_stream_decodes_provider_events() {
 
     let response = client()
         .responses()
-        .create_stream(
+        .create_prepared_stream(
             ResponseRequest::<Gpt5_4Mini>::builder()
                 .input_text("Reply OK.")
                 .build(),
@@ -544,7 +544,7 @@ async fn live_openai_entitled_service_tier_matrix() {
             .build();
         client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .unwrap_or_else(|error| panic!("service tier {tier:?} failed: {error}"));
     }
@@ -581,7 +581,7 @@ async fn live_openai_entitled_gpt56_model_and_reasoning_matrix() {
     ] {
         client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .unwrap_or_else(|error| panic!("GPT-5.6 create failed for {model}: {error}"));
     }
@@ -644,7 +644,7 @@ async fn live_openai_entitled_gpt56_model_and_reasoning_matrix() {
     ] {
         client
             .responses()
-            .create(request)
+            .create_prepared(request)
             .await
             .unwrap_or_else(|error| panic!("GPT-5.6 effort {effort} failed: {error}"));
     }

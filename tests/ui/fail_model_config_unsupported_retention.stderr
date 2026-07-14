@@ -1,0 +1,13 @@
+error[E0599]: the method `prompt_cache_retention` exists for struct `ResponseModelConfig<ai_client::openai::responses::Gpt4oMini>`, but its trait bounds were not satisfied
+ --> tests/ui/fail_model_config_unsupported_retention.rs:4:33
+  |
+4 |     let _ = Gpt4oMini::config().prompt_cache_retention(PromptCacheRetention::Hours24);
+  |                                 ^^^^^^^^^^^^^^^^^^^^^^ private field, not a method
+  |
+ ::: src/openai/responses/models.rs
+  |
+  |         pub struct $name;
+  |         ----------------- doesn't satisfy `_: SupportsPromptCacheRetention`
+  |
+  = note: the following trait bounds were not satisfied:
+          `ai_client::openai::responses::Gpt4oMini: SupportsPromptCacheRetention`

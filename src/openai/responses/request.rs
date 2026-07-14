@@ -6,4 +6,5 @@ mod wire;
 
 pub use builder::*;
 pub use options::*;
+pub(crate) use wire::OpenAIResponsesWireRequest;
 pub use wire::PreparedResponseRequest;

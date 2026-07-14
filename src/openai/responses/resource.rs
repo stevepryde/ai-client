@@ -16,7 +16,8 @@ use super::CreateResponseStreamOptions;
 use super::{
     ListResponseInputItemsOptions, OpenAICompactRequest, OpenAICompactResponse,
     OpenAIInputTokenCountRequest, OpenAIInputTokenCountResponse, OpenAIResponseItemList,
-    OpenAIResponsesCreateResponse, PreparedResponseRequest, ResponseId, RetrieveResponseOptions,
+    OpenAIResponsesCreateResponse, PreparedResponseRequest, ResponseId, ResponseModelFor,
+    RetrieveResponseOptions,
 };
 #[cfg(feature = "stream")]
 use super::{OpenAIResponsesStreamEvent, RetrieveResponseStreamOptions};
@@ -31,8 +32,21 @@ impl<'a> ResponsesResource<'a> {
         Self { client }
     }
 
-    /// Create a response.
-    pub async fn create(
+    /// Create a response from a typed model config and reusable request.
+    pub async fn create<Model, Request>(
+        &self,
+        model: Model,
+        request: Request,
+    ) -> AiResult<AiResponse<OpenAIResponsesCreateResponse>>
+    where
+        Model: ResponseModelFor<Request>,
+    {
+        self.create_prepared(model.prepare(request)).await
+    }
+
+    /// Send an already prepared request through the low-level migration path.
+    #[doc(hidden)]
+    pub async fn create_prepared(
         &self,
         mut request: PreparedResponseRequest,
     ) -> AiResult<AiResponse<OpenAIResponsesCreateResponse>> {
@@ -51,17 +65,48 @@ impl<'a> ResponsesResource<'a> {
 
     /// Create a response and stream its server-sent events.
     #[cfg(feature = "stream")]
-    pub async fn create_stream(
+    pub async fn create_stream<Model, Request>(
         &self,
-        request: PreparedResponseRequest,
-    ) -> AiResult<AiResponse<AiStream<SseJsonEvent<OpenAIResponsesStreamEvent>>>> {
-        self.create_stream_with_options(request, &CreateResponseStreamOptions::default())
+        model: Model,
+        request: Request,
+    ) -> AiResult<AiResponse<AiStream<SseJsonEvent<OpenAIResponsesStreamEvent>>>>
+    where
+        Model: ResponseModelFor<Request>,
+    {
+        self.create_stream_with_options(model, request, &CreateResponseStreamOptions::default())
             .await
     }
 
     /// Create and stream with transport-owned SSE options.
     #[cfg(feature = "stream")]
-    pub async fn create_stream_with_options(
+    pub async fn create_stream_with_options<Model, Request>(
+        &self,
+        model: Model,
+        request: Request,
+        options: &CreateResponseStreamOptions,
+    ) -> AiResult<AiResponse<AiStream<SseJsonEvent<OpenAIResponsesStreamEvent>>>>
+    where
+        Model: ResponseModelFor<Request>,
+    {
+        self.create_prepared_stream_with_options(model.prepare(request), options)
+            .await
+    }
+
+    /// Stream an already prepared request through the low-level migration path.
+    #[cfg(feature = "stream")]
+    #[doc(hidden)]
+    pub async fn create_prepared_stream(
+        &self,
+        request: PreparedResponseRequest,
+    ) -> AiResult<AiResponse<AiStream<SseJsonEvent<OpenAIResponsesStreamEvent>>>> {
+        self.create_prepared_stream_with_options(request, &CreateResponseStreamOptions::default())
+            .await
+    }
+
+    /// Stream a prepared request with transport-owned SSE options.
+    #[cfg(feature = "stream")]
+    #[doc(hidden)]
+    pub async fn create_prepared_stream_with_options(
         &self,
         mut request: PreparedResponseRequest,
         options: &CreateResponseStreamOptions,
@@ -217,9 +262,12 @@ mod tests {
     use super::*;
     use crate::{
         core::test_support::{json_response, one_shot_server},
-        openai::responses::{
-            Gpt4oMini, ListOrder, OpenAIResponsesInput, ResponseInclude, ResponseItemId,
-            ResponseRequest,
+        openai::{
+            responses::{
+                CreateResponseRequest, ExtendedReasoningEffort, Gpt4oMini, Gpt5_2, ListOrder,
+                OpenAIResponsesInput, PromptCacheRetention, ResponseInclude, ResponseItemId,
+            },
+            OpenAIJsonSchema,
         },
     };
 
@@ -239,12 +287,6 @@ mod tests {
             .unwrap()
     }
 
-    fn prepared_request() -> PreparedResponseRequest {
-        ResponseRequest::<Gpt4oMini>::builder()
-            .input_text("hello")
-            .build()
-    }
-
     fn request_json(request: &str) -> serde_json::Value {
         serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap()
     }
@@ -253,7 +295,11 @@ mod tests {
     async fn create_owns_non_stream_wire_mode() {
         let (base_url, wire) = one_shot_server("v1", error_response()).await;
         let client = test_client(base_url);
-        let _ = client.responses().create(prepared_request()).await;
+        let request = CreateResponseRequest::builder().input_text("hello").build();
+        let _ = client
+            .responses()
+            .create(Gpt4oMini::config(), request)
+            .await;
         let wire = wire.await.unwrap();
 
         assert!(wire.starts_with("POST /v1/responses HTTP/1.1\r\n"));
@@ -263,12 +309,44 @@ mod tests {
         assert!(body.get("stream").is_none());
     }
 
+    #[tokio::test]
+    async fn create_combines_request_with_typed_model_config() {
+        let (base_url, wire) = one_shot_server("v1", error_response()).await;
+        let client = test_client(base_url);
+        let request = CreateResponseRequest::builder()
+            .input_text("private input")
+            .prompt_cache_key("cache-key")
+            .json_schema(OpenAIJsonSchema {
+                name: "result".into(),
+                description: "result".into(),
+                schema: serde_json::json!({"type": "object"}),
+                strict: Some(true),
+            })
+            .build();
+        let model = Gpt5_2::config()
+            .reasoning(ExtendedReasoningEffort::High)
+            .prompt_cache_retention(PromptCacheRetention::Hours24);
+
+        let _ = client.responses().create(model, request).await;
+        let body = request_json(&wire.await.unwrap());
+
+        assert_eq!(body["model"], "gpt-5.2");
+        assert_eq!(body["reasoning"]["effort"], "high");
+        assert_eq!(body["prompt_cache_key"], "cache-key");
+        assert_eq!(body["prompt_cache_retention"], "24h");
+        assert_eq!(body["text"]["format"]["type"], "json_schema");
+    }
+
     #[cfg(feature = "stream")]
     #[tokio::test]
     async fn create_stream_owns_stream_wire_mode() {
         let (base_url, wire) = one_shot_server("v1", error_response()).await;
         let client = test_client(base_url);
-        let _ = client.responses().create_stream(prepared_request()).await;
+        let request = CreateResponseRequest::builder().input_text("hello").build();
+        let _ = client
+            .responses()
+            .create_stream(Gpt4oMini::config(), request)
+            .await;
         let wire = wire.await.unwrap();
 
         assert!(wire.starts_with("POST /v1/responses HTTP/1.1\r\n"));
@@ -283,9 +361,10 @@ mod tests {
         let (base_url, wire) = one_shot_server("v1", error_response()).await;
         let client = test_client(base_url);
         let options = CreateResponseStreamOptions::new().include_obfuscation(false);
+        let request = CreateResponseRequest::builder().input_text("hello").build();
         let _ = client
             .responses()
-            .create_stream_with_options(prepared_request(), &options)
+            .create_stream_with_options(Gpt4oMini::config(), request, &options)
             .await;
         let body = request_json(&wire.await.unwrap());
 
