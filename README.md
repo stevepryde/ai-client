@@ -16,6 +16,7 @@ It also needs a catchy name.
 - **OpenAI API**: Support for OpenAI's API
   - Full pinned Responses resource operations and typed protocol coverage
   - Conversations state and item operations used by Responses
+  - Typed embeddings with model-bound output dimensions
   - Model listing
   - Streaming responses (with `stream` feature)
   - Deprecated legacy chat completions (with `chat-completions` feature)
@@ -97,6 +98,36 @@ capabilities, and start with `ResponseModelConfig::<MyModel>::new()`.
 See [`specs/migration-0.6.md`](specs/migration-0.6.md) for a focused migration
 guide.
 
+## OpenAI Embeddings
+
+Embedding requests bind dimensions to the selected model marker and return
+vectors together with provider usage and HTTP metadata:
+
+```no_run
+use ai_client::openai::{
+    OpenAIClient,
+    embeddings::{
+        CreateEmbeddingRequest, EmbeddingDimensions, EmbeddingInput,
+        TextEmbedding3Large,
+    },
+};
+
+# async fn example() -> Result<(), Box<dyn std::error::Error>> {
+let client = OpenAIClient::builder()
+    .api_key(std::env::var("OPENAI_API_KEY")?)
+    .build()?;
+let request = CreateEmbeddingRequest::<TextEmbedding3Large>::new(
+    EmbeddingInput::batch(["first document", "second document"])?
+)
+.dimensions(EmbeddingDimensions::new(1_024)?);
+let response = client.embeddings().create(request).await?;
+for embedding in &response.data().data {
+    println!("{}: {} dimensions", embedding.index, embedding.embedding.len());
+}
+# Ok(())
+# }
+```
+
 Stored responses use validated opaque IDs and encoded path segments:
 
 ```no_run
@@ -120,6 +151,7 @@ println!("status: {:?}", response.data().status);
 | --- | --- |
 | Responses | 7/7 pinned operations, including distinct create/retrieve streaming methods |
 | Conversations | 8/8 pinned operations for conversation and nested item state |
+| Embeddings | Typed create operation with model-bound dimensions and float vectors |
 | Standalone Images | Next planned native API resource |
 | Files, Audio, Realtime, Batches, Videos, administration/control-plane | Deferred and out of the active product scope |
 

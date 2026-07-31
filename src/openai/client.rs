@@ -19,6 +19,7 @@ use crate::{
     },
     openai::{
         conversations::ConversationsResource,
+        embeddings::EmbeddingsResource,
         list_models::{OpenAIModelInfo, OpenAIModelsListResponse},
         responses::{OpenAIResponsesCreateResponse, PreparedResponseRequest, ResponsesResource},
     },
@@ -202,6 +203,11 @@ impl OpenAIClient {
     /// Access OpenAI's Conversations API.
     pub fn conversations(&self) -> ConversationsResource<'_> {
         ConversationsResource::new(self)
+    }
+
+    /// Access OpenAI's embeddings API.
+    pub fn embeddings(&self) -> EmbeddingsResource<'_> {
+        EmbeddingsResource::new(self)
     }
 
     pub(crate) fn transport(&self) -> &HttpTransport {
