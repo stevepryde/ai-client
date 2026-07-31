@@ -135,8 +135,8 @@ macro_rules! tool {
     )+ };
 }
 
-impl_trait!(SupportsTools: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
-tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
+impl_trait!(SupportsTools: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4, Gpt5_6Terra);
+tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4, Gpt5_6Terra);
 tool!(OpenAIFileSearchTool: Gpt5_4);
 tool!(OpenAIComputerTool: Gpt5_4);
 tool!(OpenAIWebSearchTool: Gpt5_4);
@@ -181,6 +181,7 @@ mod tests {
     fn retention<M: SupportsPromptCacheRetention>() {}
     fn image_tool<M: crate::openai::responses::SupportsImageGenerationTool>() {}
     fn item_input<M: SupportsItemInput>() {}
+    fn function_tools<M: SupportsTool<OpenAIFunctionTool> + SupportsTools>() {}
 
     #[test]
     fn representative_positive_capability_bounds_compile() {
@@ -204,5 +205,6 @@ mod tests {
         item_input::<Gpt4o>();
         item_input::<Gpt5_4Pro>();
         item_input::<Gpt5_6Terra>();
+        function_tools::<Gpt5_6Terra>();
     }
 }

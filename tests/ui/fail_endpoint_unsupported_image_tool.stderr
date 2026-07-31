@@ -13,8 +13,8 @@ help: the trait `SupportsTool<OpenAIImageGenerationTool>` is not implemented for
    |         impl SupportsTool<$tool> for $model {}
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ...
-   | tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
-   | ------------------------------------------------------------------------------------------- in this macro invocation
+   | tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4, Gpt5_6Terra);
+   | -------------------------------------------------------------------------------------------------------- in this macro invocation
    = help: for that trait implementation, expected `OpenAIFunctionTool`, found `OpenAIImageGenerationTool`
    = note: required for `ToolList<OpenAIImageGenerationTool, NoTools>` to implement `responses::create_request::compatibility::ToolListCompatible<ai_client::openai::responses::Gpt5_1>`
    = note: required for `CreateResponseRequest<CommonInput, PlainTextOutput, ToolList<OpenAIImageGenerationTool, NoTools>>` to implement `ai_client::openai::responses::CompatibleResponseRequest<ai_client::openai::responses::Gpt5_1>`
@@ -42,8 +42,8 @@ help: the trait `SupportsTool<OpenAIImageGenerationTool>` is not implemented for
    |         impl SupportsTool<$tool> for $model {}
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ...
-   | tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
-   | ------------------------------------------------------------------------------------------- in this macro invocation
+   | tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4, Gpt5_6Terra);
+   | -------------------------------------------------------------------------------------------------------- in this macro invocation
    = help: for that trait implementation, expected `OpenAIFunctionTool`, found `OpenAIImageGenerationTool`
    = note: required for `ToolList<OpenAIImageGenerationTool, NoTools>` to implement `responses::create_request::compatibility::ToolListCompatible<ai_client::openai::responses::Gpt5_1>`
    = note: required for `CreateResponseRequest<CommonInput, PlainTextOutput, ToolList<OpenAIImageGenerationTool, NoTools>>` to implement `ai_client::openai::responses::CompatibleResponseRequest<ai_client::openai::responses::Gpt5_1>`
@@ -71,8 +71,8 @@ help: the trait `SupportsTool<OpenAIImageGenerationTool>` is not implemented for
    |         impl SupportsTool<$tool> for $model {}
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ...
-   | tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4);
-   | ------------------------------------------------------------------------------------------- in this macro invocation
+   | tool!(OpenAIFunctionTool: Gpt4oMini, Gpt4o, Gpt4_1, Gpt4_1Mini, Gpt4_1Nano, Gpt5_1, Gpt5_4, Gpt5_6Terra);
+   | -------------------------------------------------------------------------------------------------------- in this macro invocation
    = help: for that trait implementation, expected `OpenAIFunctionTool`, found `OpenAIImageGenerationTool`
    = note: required for `ToolList<OpenAIImageGenerationTool, NoTools>` to implement `responses::create_request::compatibility::ToolListCompatible<ai_client::openai::responses::Gpt5_1>`
    = note: required for `CreateResponseRequest<CommonInput, PlainTextOutput, ToolList<OpenAIImageGenerationTool, NoTools>>` to implement `ai_client::openai::responses::CompatibleResponseRequest<ai_client::openai::responses::Gpt5_1>`
