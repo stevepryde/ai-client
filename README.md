@@ -271,3 +271,33 @@ This work is dual-licensed under MIT or Apache 2.0.
 You can choose either license if you use this work.
 
 `SPDX-License-Identifier: MIT OR Apache-2.0`
+
+## OpenRouter Responses
+
+`openrouter::OpenRouterClient` uses `https://openrouter.ai/api/v1/responses` with
+its own API key and provider diagnostics. It reuses the Responses request,
+response and streaming event types. The separate `openai_compatible` provider
+continues to serve chat-completions dialects.
+
+```rust,no_run
+use ai_client::{
+    openrouter::{OpenRouterClient, KimiK3},
+    openai::responses::CreateResponseRequest,
+};
+# async fn example() -> Result<(), Box<dyn std::error::Error>> {
+let client = OpenRouterClient::builder()
+    .api_key(std::env::var("OPENROUTER_API_KEY")?)
+    .build()?;
+let response = client.responses().create(
+    KimiK3::config().reasoning_none(),
+    CreateResponseRequest::builder().input_text("Continue the story.").build(),
+).await?;
+# Ok(())
+# }
+```
+
+`Euryale70B` selects `sao10k/l3.3-euryale-70b`; `KimiK3` selects
+`moonshotai/kimi-k3`. With the `stream` feature, use `create_stream` with the same
+model and request. OpenRouter's nullable metadata and omitted optional response
+fields are accepted. Additional model IDs can use a custom `OpenAIResponsesModel`
+marker, implementing only the capabilities supported by that model.

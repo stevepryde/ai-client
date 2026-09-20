@@ -37,6 +37,7 @@ const USER_AGENT_VALUE: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_
 
 #[derive(Clone, Default)]
 pub struct OpenAIClientBuilder {
+    pub(crate) provider: Option<AiProvider>,
     api_key: Option<String>,
     base_url: Option<String>,
     request_timeout: Option<Duration>,
@@ -103,14 +104,21 @@ impl OpenAIClientBuilder {
     }
 
     pub fn build(self) -> AiResult<OpenAIClient> {
+        let provider = self.provider.unwrap_or(AiProvider::OpenAI);
         let api_key = self.api_key.ok_or_else(|| {
-            AiError::config(ConfigErrorKind::MissingApiKey, "OpenAI API key is required")
+            AiError::config(
+                ConfigErrorKind::MissingApiKey,
+                format!("{provider} API key is required"),
+            )
         })?;
         let mut headers = self.default_headers;
         headers.insert(USER_AGENT, HeaderValue::from_static(USER_AGENT_VALUE));
         let mut authorization =
             HeaderValue::from_str(&format!("Bearer {api_key}")).map_err(|_| {
-                AiError::config(ConfigErrorKind::InvalidApiKey, "OpenAI API key is invalid")
+                AiError::config(
+                    ConfigErrorKind::InvalidApiKey,
+                    format!("{provider} API key is invalid"),
+                )
             })?;
         authorization.set_sensitive(true);
         headers.insert(AUTHORIZATION, authorization);
@@ -118,13 +126,17 @@ impl OpenAIClientBuilder {
         insert_optional_header(&mut headers, "openai-project", self.project)?;
 
         let transport = HttpTransport::new(HttpTransportConfig {
-            provider: AiProvider::OpenAI,
+            provider,
             base_url: self.base_url.unwrap_or_else(|| BASE_URL.to_string()),
             headers,
             request_timeout: self.request_timeout,
             connect_timeout: self.connect_timeout,
         })?;
-        Ok(OpenAIClient { transport })
+        Ok(OpenAIClient {
+            transport,
+            #[cfg(feature = "stream")]
+            provider,
+        })
     }
 }
 
@@ -186,6 +198,8 @@ fn scalar(value: &Option<serde_json::Value>) -> Option<String> {
 
 #[non_exhaustive]
 pub struct OpenAIClient {
+    #[cfg(feature = "stream")]
+    pub(crate) provider: AiProvider,
     transport: HttpTransport,
 }
 

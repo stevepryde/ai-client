@@ -3,7 +3,6 @@
 #[cfg(feature = "stream")]
 use crate::{
     core::sse,
-    error::AiProvider,
     stream::{AiStream, SseJsonEvent},
 };
 use crate::{
@@ -125,7 +124,7 @@ impl<'a> ResponsesResource<'a> {
             .await?;
         let (bytes, metadata) = response.into_parts();
         Ok(AiResponse::new(
-            sse::json_events(bytes, AiProvider::OpenAI, "responses.create_stream"),
+            sse::json_events(bytes, self.client.provider, "responses.create_stream"),
             metadata,
         ))
     }
@@ -175,7 +174,7 @@ impl<'a> ResponsesResource<'a> {
             .await?;
         let (bytes, metadata) = response.into_parts();
         Ok(AiResponse::new(
-            sse::json_events(bytes, AiProvider::OpenAI, "responses.retrieve_stream"),
+            sse::json_events(bytes, self.client.provider, "responses.retrieve_stream"),
             metadata,
         ))
     }

@@ -5,6 +5,7 @@ pub mod gemini;
 pub mod openai;
 #[cfg(feature = "openai-compatible")]
 pub mod openai_compatible;
+pub mod openrouter;
 #[cfg(feature = "stream")]
 pub mod stream;
 

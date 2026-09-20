@@ -60,8 +60,11 @@ pub struct OpenAIIncompleteDetails {
     pub extra: ExtraFields,
 }
 
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenAIResponsesCreateResponse {
+    #[serde(default)]
+    #[serde_as(deserialize_as = "serde_with::DefaultOnNull")]
     pub metadata: OpenAIResponseMetadata,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_logprobs: Option<TopLogprobs>,
@@ -92,6 +95,8 @@ pub struct OpenAIResponsesCreateResponse {
     pub error: Option<OpenAIResponseError>,
     pub incomplete_details: Option<OpenAIIncompleteDetails>,
     pub output: Vec<OpenAIResponseOutputItem>,
+    #[serde(default)]
+    #[serde_as(deserialize_as = "serde_with::DefaultOnNull")]
     pub reasoning: OpenAIResponsesReasoning,
     pub instructions: Option<String>,
     #[serde(default)]
@@ -107,6 +112,7 @@ pub struct OpenAIResponsesCreateResponse {
     pub tool_choice: OpenAIToolChoice,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<OpenAIPromptTemplate>,
+    #[serde(default = "disabled_truncation")]
     pub truncation: OpenAITruncation,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store: Option<bool>,
@@ -115,6 +121,10 @@ pub struct OpenAIResponsesCreateResponse {
 }
 
 pub type OpenAIResponse = OpenAIResponsesCreateResponse;
+
+fn disabled_truncation() -> OpenAITruncation {
+    OpenAITruncation::Disabled
+}
 
 #[cfg(test)]
 mod tests {

@@ -84,7 +84,7 @@ pub enum OpenAIReasoningContext {
     AllTurns,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OpenAIResponsesReasoning {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,

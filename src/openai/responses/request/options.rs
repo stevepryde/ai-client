@@ -43,7 +43,7 @@ impl<'de> Deserialize<'de> for TopLogprobs {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct OpenAIResponseMetadata(std::collections::BTreeMap<String, String>);
 

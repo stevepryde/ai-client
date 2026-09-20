@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct OpenAIOutputTextContent {
     pub text: String,
     pub annotations: Vec<OpenAIResponseAnnotation>,
+    #[serde(default)]
     pub logprobs: Vec<OpenAILogProb>,
     #[serde(default, flatten)]
     pub extra: ExtraFields,
