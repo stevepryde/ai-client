@@ -20,6 +20,10 @@ impl PreparedResponseRequest {
         &self.wire.model
     }
 
+    pub(crate) fn require_zdr(&mut self) {
+        self.wire.provider = Some(OpenRouterProviderPreferences { zdr: true });
+    }
+
     pub(crate) fn new(wire: OpenAIResponsesWireRequest) -> Self {
         Self { wire }
     }
@@ -48,7 +52,14 @@ impl Serialize for PreparedResponseRequest {
 }
 
 #[derive(Clone, Serialize)]
+struct OpenRouterProviderPreferences {
+    zdr: bool,
+}
+
+#[derive(Clone, Serialize)]
 pub(crate) struct OpenAIResponsesWireRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider: Option<OpenRouterProviderPreferences>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) metadata: Option<OpenAIResponseMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -115,6 +126,7 @@ pub(crate) struct OpenAIResponsesWireRequest {
 impl OpenAIResponsesWireRequest {
     pub(crate) fn new(model: String) -> Self {
         Self {
+            provider: None,
             metadata: None,
             top_logprobs: None,
             model,

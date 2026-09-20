@@ -6,21 +6,21 @@ use crate::{
     openai::{OpenAIClient, OpenAIClientBuilder},
 };
 
-pub struct OpenRouterClient(OpenAIClient);
+pub struct OpenRouterClient(OpenAIClient, bool);
 
 impl OpenRouterClient {
     pub fn builder() -> OpenRouterClientBuilder {
         let mut inner = OpenAIClient::builder().base_url("https://openrouter.ai/api/v1");
         inner.provider = Some(AiProvider::OpenRouter);
-        OpenRouterClientBuilder(inner)
+        OpenRouterClientBuilder(inner, false)
     }
     pub fn responses(&self) -> ResponsesResource<'_> {
-        self.0.responses()
+        self.0.responses().with_zdr(self.1)
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct OpenRouterClientBuilder(OpenAIClientBuilder);
+pub struct OpenRouterClientBuilder(OpenAIClientBuilder, bool);
 impl OpenRouterClientBuilder {
     pub fn api_key(mut self, key: String) -> Self {
         self.0 = self.0.api_key(key);
@@ -34,8 +34,16 @@ impl OpenRouterClientBuilder {
         self.0 = self.0.request_timeout(timeout);
         self
     }
+    /// Require Zero Data Retention endpoints for every Responses inference request.
+    /// This cannot weaken account-level ZDR enforcement.
+    pub fn zdr(mut self, enabled: bool) -> Self {
+        self.1 = enabled;
+        self
+    }
     pub fn build(self) -> AiResult<OpenRouterClient> {
-        self.0.build().map(OpenRouterClient)
+        self.0
+            .build()
+            .map(|client| OpenRouterClient(client, self.1))
     }
 }
 

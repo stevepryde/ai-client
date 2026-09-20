@@ -48,6 +48,7 @@ async fn decodes_documented_response_and_sends_responses_request() {
     let client = OpenRouterClient::builder()
         .api_key("test-router-key".into())
         .base_url(url)
+        .zdr(true)
         .build()
         .unwrap();
     let response = client
@@ -64,6 +65,10 @@ async fn decodes_documented_response_and_sends_responses_request() {
     assert_eq!(response.usage.unwrap().output_tokens, 20);
     assert_eq!(response.output.len(), 1);
     let received = received.await.unwrap();
+    let body: serde_json::Value =
+        serde_json::from_str(received.split("\r\n\r\n").nth(1).unwrap()).unwrap();
+    // OpenRouter ResponsesRequest.provider uses ProviderPreferences.zdr.
+    assert_eq!(body["provider"]["zdr"], true);
     assert!(received.starts_with("POST /api/v1/responses HTTP/1.1"));
     assert!(received
         .to_lowercase()
@@ -84,6 +89,7 @@ async fn decodes_router_text_and_completion_over_sse() {
     let client = OpenRouterClient::builder()
         .api_key("test-router-key".into())
         .base_url(url)
+        .zdr(true)
         .build()
         .unwrap();
     let events: Vec<_> = client
@@ -108,4 +114,5 @@ async fn decodes_router_text_and_completion_over_sse() {
     let body: serde_json::Value =
         serde_json::from_str(received.await.unwrap().split("\r\n\r\n").nth(1).unwrap()).unwrap();
     assert_eq!(body["stream"], true);
+    assert_eq!(body["provider"]["zdr"], true);
 }

@@ -24,11 +24,17 @@ use super::{OpenAIResponsesStreamEvent, RetrieveResponseStreamOptions};
 #[derive(Clone, Copy)]
 pub struct ResponsesResource<'a> {
     client: &'a OpenAIClient,
+    zdr: bool,
 }
 
 impl<'a> ResponsesResource<'a> {
     pub(crate) fn new(client: &'a OpenAIClient) -> Self {
-        Self { client }
+        Self { client, zdr: false }
+    }
+
+    pub(crate) fn with_zdr(mut self, enabled: bool) -> Self {
+        self.zdr = enabled;
+        self
     }
 
     /// Create a response from a typed model config and reusable request.
@@ -49,6 +55,9 @@ impl<'a> ResponsesResource<'a> {
         &self,
         mut request: PreparedResponseRequest,
     ) -> AiResult<AiResponse<OpenAIResponsesCreateResponse>> {
+        if self.zdr {
+            request.require_zdr();
+        }
         request.wire_mut().stream = None;
         request.wire_mut().stream_options = None;
         self.client
@@ -110,6 +119,9 @@ impl<'a> ResponsesResource<'a> {
         mut request: PreparedResponseRequest,
         options: &CreateResponseStreamOptions,
     ) -> AiResult<AiResponse<AiStream<SseJsonEvent<OpenAIResponsesStreamEvent>>>> {
+        if self.zdr {
+            request.require_zdr();
+        }
         request.wire_mut().stream = Some(true);
         request.wire_mut().stream_options = (!options.is_empty()).then(|| options.clone());
         let response = self
