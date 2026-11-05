@@ -187,8 +187,9 @@ pub struct OpenAIProgrammaticToolCallingTool {
 pub struct OpenAIImageGenerationTool {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<OpenAIImageModel>,
-    /// Overrides inherited outer reasoning. GPT Image 2.5 cannot inherit
-    /// `none`, `minimal`, `xhigh`, or `max`; choose an explicit image level.
+    /// Overrides inherited outer reasoning on models supporting complexity.
+    /// GPT Image 2.5 rejects configurable complexity: omit this field and
+    /// the outer response's reasoning effort to use the model default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub complexity: Option<OpenAIImageComplexity>,
     #[serde(skip_serializing_if = "Option::is_none")]

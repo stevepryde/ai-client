@@ -7,7 +7,7 @@ use crate::{
 };
 use crate::{
     error::{AiResponse, AiResult},
-    openai::{client::decode_openai_error, OpenAIClient},
+    openai::{OpenAIClient, client::decode_openai_error},
 };
 
 #[cfg(feature = "stream")]
@@ -276,11 +276,11 @@ mod tests {
     use crate::{
         core::test_support::{json_response, one_shot_server},
         openai::{
+            OpenAIJsonSchema,
             responses::{
                 CreateResponseRequest, ExtendedReasoningEffort, Gpt4oMini, Gpt5_2, ListOrder,
                 OpenAIResponsesInput, PromptCacheRetention, ResponseInclude, ResponseItemId,
             },
-            OpenAIJsonSchema,
         },
     };
 
@@ -561,40 +561,67 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn image_complexity_override_preserves_outer_none_on_the_wire() {
+    async fn image_2_5_rejects_explicit_complexity_before_http() {
         use crate::openai::responses::{
             Gpt5_6Luna, OpenAIImageComplexity, OpenAIImageGenerationTool, OpenAIImageModel,
         };
-        let (base_url, wire) = one_shot_server("v1", error_response()).await;
-        let client = test_client(base_url);
-        let request = CreateResponseRequest::builder()
-            .input_text("portrait")
-            .image_generation_tool(
-                OpenAIImageGenerationTool::builder()
-                    .model(OpenAIImageModel::GptImage2_5Flare)
-                    .complexity(OpenAIImageComplexity::Low)
-                    .extra(Default::default())
-                    .build(),
-            )
-            .build();
-        let result = client
-            .responses()
-            .create(Gpt5_6Luna::config().reasoning_none(), request)
-            .await;
-        assert!(
-            matches!(result, Err(crate::error::AiError::Api { .. })),
-            "valid override must reach the HTTP boundary"
-        );
-        let body = request_json(&wire.await.unwrap());
-        assert_eq!(body["reasoning"]["effort"], "none");
-        assert_eq!(body["tools"][0]["complexity"], "low");
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let client = test_client(format!("http://{}/v1", listener.local_addr().unwrap()));
+        for model in [
+            OpenAIImageModel::GptImage2_5Flare,
+            OpenAIImageModel::GptImage2_5Sunburst,
+        ] {
+            for complexity in [
+                OpenAIImageComplexity::Low,
+                OpenAIImageComplexity::Medium,
+                OpenAIImageComplexity::High,
+            ] {
+                for raw in [false, true] {
+                    let image = if raw {
+                        OpenAIImageGenerationTool::builder()
+                            .model(model)
+                            .extra(serde_json::Map::from_iter([(
+                                "complexity".into(),
+                                serde_json::to_value(complexity).unwrap(),
+                            )]))
+                            .build()
+                    } else {
+                        OpenAIImageGenerationTool::builder()
+                            .model(model)
+                            .complexity(complexity)
+                            .extra(Default::default())
+                            .build()
+                    };
+                    let request = CreateResponseRequest::builder()
+                        .input_text("portrait")
+                        .image_generation_tool(image)
+                        .build();
+                    let result = tokio::time::timeout(
+                        std::time::Duration::from_millis(500),
+                        client.responses().create(Gpt5_6Luna::config(), request),
+                    )
+                    .await
+                    .unwrap();
+                    assert!(matches!(
+                        result,
+                        Err(crate::error::AiError::Config {
+                            kind: crate::error::ConfigErrorKind::InvalidRequest,
+                            ..
+                        })
+                    ));
+                    assert_eq!(
+                        listener.accept().unwrap_err().kind(),
+                        std::io::ErrorKind::WouldBlock
+                    );
+                }
+            }
+        }
     }
 
     #[tokio::test]
-    async fn image_complexity_allows_supported_outer_inheritance() {
-        use crate::openai::responses::{
-            Gpt5_6Luna, Gpt5_6ReasoningEffort, OpenAIImageGenerationTool, OpenAIImageModel,
-        };
+    async fn image_2_5_allows_model_default_planning() {
+        use crate::openai::responses::{Gpt5_6Luna, OpenAIImageGenerationTool, OpenAIImageModel};
         let (base_url, wire) = one_shot_server("v1", error_response()).await;
         let client = test_client(base_url);
         let request = CreateResponseRequest::builder()
@@ -608,15 +635,54 @@ mod tests {
             .build();
         let result = client
             .responses()
-            .create(
+            .create(Gpt5_6Luna::config(), request)
+            .await;
+        assert!(
+            matches!(result, Err(crate::error::AiError::Api { .. })),
+            "live-proven default planning must reach the HTTP boundary"
+        );
+        let body = request_json(&wire.await.unwrap());
+        assert!(body.get("reasoning").is_none());
+        assert!(body["tools"][0].get("complexity").is_none());
+    }
+
+    #[tokio::test]
+    async fn image_2_5_rejects_inherited_high_before_http() {
+        use crate::openai::responses::{
+            Gpt5_6Luna, Gpt5_6ReasoningEffort, OpenAIImageGenerationTool, OpenAIImageModel,
+        };
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let client = test_client(format!("http://{}/v1", listener.local_addr().unwrap()));
+        let request = CreateResponseRequest::builder()
+            .input_text("portrait")
+            .image_generation_tool(
+                OpenAIImageGenerationTool::builder()
+                    .model(OpenAIImageModel::GptImage2_5Flare)
+                    .extra(Default::default())
+                    .build(),
+            )
+            .build();
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(500),
+            client.responses().create(
                 Gpt5_6Luna::config().reasoning(Gpt5_6ReasoningEffort::High),
                 request,
-            )
-            .await;
-        assert!(matches!(result, Err(crate::error::AiError::Api { .. })));
-        let body = request_json(&wire.await.unwrap());
-        assert_eq!(body["reasoning"]["effort"], "high");
-        assert!(body["tools"][0].get("complexity").is_none());
+            ),
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            result,
+            Err(crate::error::AiError::Config {
+                kind: crate::error::ConfigErrorKind::InvalidRequest,
+                ..
+            })
+        ));
+        assert_eq!(
+            listener.accept().unwrap_err().kind(),
+            std::io::ErrorKind::WouldBlock
+        );
     }
 
     #[tokio::test]
