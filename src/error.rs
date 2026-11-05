@@ -32,6 +32,7 @@ pub enum ConfigErrorKind {
     InvalidBaseUrl,
     InvalidHeader,
     InvalidModel,
+    InvalidRequest,
     HttpClient,
 }
 

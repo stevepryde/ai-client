@@ -53,6 +53,15 @@ pub enum OpenAIImageQuality {
     Auto,
 }
 
+/// Image planning effort, independent of rendering quality and host reasoning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OpenAIImageComplexity {
+    Low,
+    Medium,
+    High,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum OpenAIImageBackground {

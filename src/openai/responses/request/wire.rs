@@ -31,6 +31,61 @@ impl PreparedResponseRequest {
     pub(crate) fn wire_mut(&mut self) -> &mut OpenAIResponsesWireRequest {
         &mut self.wire
     }
+
+    pub(crate) fn validate_image_complexity(&self) -> crate::error::AiResult<()> {
+        use crate::{
+            error::{AiError, ConfigErrorKind},
+            openai::{
+                responses::{OpenAIImageComplexity, OpenAIImageModel},
+                OpenAIReasoningEffort,
+            },
+        };
+
+        for tool in self.wire.tools.iter().flatten() {
+            let OpenAIResponsesTool::ImageGeneration(image) = tool else {
+                continue;
+            };
+            let raw_complexity = image.extra.get("complexity");
+            if image.complexity.is_some() && raw_complexity.is_some() {
+                return Err(AiError::config(ConfigErrorKind::InvalidRequest,
+                    "image complexity must not be supplied in both the typed field and extra fields"));
+            }
+            let explicit_complexity = if let Some(raw) = raw_complexity {
+                Some(
+                    serde_json::from_value::<OpenAIImageComplexity>(raw.clone()).map_err(|_| {
+                        AiError::config(
+                            ConfigErrorKind::InvalidRequest,
+                            "image complexity must be low, medium, or high",
+                        )
+                    })?,
+                )
+            } else {
+                image.complexity
+            };
+            let inherits_unsupported_effort = matches!(
+                self.wire
+                    .reasoning
+                    .as_ref()
+                    .and_then(|reasoning| reasoning.effort.as_ref()),
+                Some(
+                    OpenAIReasoningEffort::None
+                        | OpenAIReasoningEffort::Minimal
+                        | OpenAIReasoningEffort::XHigh
+                        | OpenAIReasoningEffort::Max
+                )
+            );
+            if matches!(
+                image.model,
+                Some(OpenAIImageModel::GptImage2_5Flare | OpenAIImageModel::GptImage2_5Sunburst)
+            ) && explicit_complexity.is_none()
+                && inherits_unsupported_effort
+            {
+                return Err(AiError::config(ConfigErrorKind::InvalidRequest,
+                    "GPT Image 2.5 cannot inherit this outer reasoning effort; set image tool complexity to low, medium, or high"));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl fmt::Debug for PreparedResponseRequest {
