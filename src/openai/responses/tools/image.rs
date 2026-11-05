@@ -2,6 +2,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum OpenAIImageModel {
+    #[serde(rename = "gpt-image-2.5-flare")]
+    GptImage2_5Flare,
+    #[serde(rename = "gpt-image-2.5-sunburst")]
+    GptImage2_5Sunburst,
     #[serde(rename = "gpt-image-2")]
     #[default]
     GptImage2,
